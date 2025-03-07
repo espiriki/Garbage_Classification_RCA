@@ -10,7 +10,14 @@ import torch
 from torchvision import transforms
 from torch.utils.data import DataLoader
 import re
+import pandas as pd
 
+filename_extended_descriptions = \
+    '/project/def-rmsouza/jocazar/ENSF_619_02_Final_project_jose_cazarin/descriptions_v2.csv'
+
+masks_path = "/project/def-rmsouza/jocazar/ENSF_619_02_Final_project_jose_cazarin/masks"
+
+print_count = 0
 
 def has_file_allowed_extension(filename: str, extensions: Union[str, Tuple[str, ...]]) -> bool:
     """Checks if a file is an allowed extension.
@@ -23,6 +30,21 @@ def has_file_allowed_extension(filename: str, extensions: Union[str, Tuple[str, 
         bool: True if the filename ends with one of given extensions
     """
     return filename.lower().endswith(extensions if isinstance(extensions, str) else tuple(extensions))
+
+
+def get_name(value):
+    return Path(value).stem
+
+
+def get_extended_desc(input, names, descriptions):
+    matching_idx = names.index[names == input].tolist()
+    if len(matching_idx) == 1:
+        matching_idx = matching_idx[0]
+        desc = descriptions.iloc[matching_idx]
+        desc = desc.split('<')[0]
+        return desc
+    else:
+        return ""
 
 
 def pre_process_text(text):
@@ -46,6 +68,7 @@ def custom_make_dataset(
     class_to_idx: Optional[Dict[str, int]] = None,
     extensions: Optional[Union[str, Tuple[str, ...]]] = None,
     is_valid_file: Optional[Callable[[str], bool]] = None,
+    extented_desc=None
 ) -> List[Tuple[Dict, int]]:
     """Generates a list of samples of a form (path_to_sample, class).
 
@@ -79,6 +102,14 @@ def custom_make_dataset(
     available_classes = set()
     per_class_lists = [[], [], [], []]
     instances = []
+
+    # csv_extended_desc = pd.read_csv(filename_extended_descriptions)
+    # names = csv_extended_desc['name']
+    # descriptions = csv_extended_desc['description']
+    # names = names.apply(get_name)
+    if extented_desc == True:
+        print("Using extended descriptions!!!")
+
     for target_class in sorted(class_to_idx.keys()):
         class_index = class_to_idx[target_class]
         target_dir = os.path.join(directory, target_class)
@@ -90,6 +121,13 @@ def custom_make_dataset(
                 if is_valid_file(path):
                     # zero out text
                     filename = pre_process_text(Path(path).stem)
+
+                    if extented_desc == True:
+                        extended = get_extended_desc(
+                            Path(path).stem, names, descriptions)
+                        if extended != "":
+                            filename = extended
+
                     item = {"text": filename, "image": path}, class_index
                     per_class_lists[class_index].append(item)
                     instances.append(item)
@@ -160,7 +198,8 @@ class DatasetFolder(VisionDataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         is_valid_file: Optional[Callable[[str], bool]] = None,
-        list_custom_samples=None
+        list_custom_samples=None,
+        use_extended_descriptions=None
     ) -> None:
         super().__init__(root, transform=transform, target_transform=target_transform)
         classes, class_to_idx = self.find_classes(self.root)
@@ -168,7 +207,7 @@ class DatasetFolder(VisionDataset):
         custom_samples = ()
         if self.root is not None:
             custom_samples = custom_make_dataset(
-                self.root, class_to_idx, extensions, is_valid_file)
+                self.root, class_to_idx, extensions, is_valid_file, use_extended_descriptions)
 
         if root is None:
             self.per_class = None
@@ -323,11 +362,45 @@ IMG_EXTENSIONS = (".jpg", ".jpeg", ".png", ".ppm", ".bmp",
                   ".pgm", ".tif", ".tiff", ".webp")
 
 
+# def pil_loader(path: str) -> Image.Image:
+#     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
+#     with open(path, "rb") as f:
+#         img = Image.open(f)
+#         return img.convert("RGB")
+
 def pil_loader(path: str) -> Image.Image:
+
+    global print_count
+
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
     with open(path, "rb") as f:
         img = Image.open(f)
-        return img.convert("RGB")
+        original_image = img.convert("RGB")
+        return original_image
+
+        try:
+            mask_img = Image.open(os.path.join(
+                masks_path, get_name(path)+".png"))
+            transform = transforms.ToTensor()
+            mask_tensor = transform(mask_img)
+            original_image_tensor = transform(original_image)
+            masked_image = original_image_tensor * (mask_tensor > 0.5)
+            to_save = masked_image.permute(1, 2, 0).numpy()
+            image = Image.fromarray((to_save * 255).astype('uint8'))
+
+            if print_count % 1000 == 0:
+                print("using masked image")
+            print_count = print_count+1
+
+            return image.convert("RGB")
+
+        except FileNotFoundError as e:
+            print("exception occurred: File Not Found!")
+            return original_image
+
+        except Exception as e:
+            print("exception occurred: ", e)
+            return original_image
 
 
 # TODO: specify the return type
@@ -382,13 +455,14 @@ class CustomImageTextFolder(DatasetFolder):
     def __init__(
         self,
         root: str,
+        use_extended_descriptions=None,
         tokens_max_len=None,
         tokenizer_text: Optional[Callable] = None,
         custom_samples=None,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         loader: Callable[[str], Any] = default_loader,
-        is_valid_file: Optional[Callable[[str], bool]] = None
+        is_valid_file: Optional[Callable[[str], bool]] = None,
     ):
         super().__init__(
             root,
@@ -399,7 +473,8 @@ class CustomImageTextFolder(DatasetFolder):
             transform=transform,
             target_transform=target_transform,
             is_valid_file=is_valid_file,
-            list_custom_samples=custom_samples
+            list_custom_samples=custom_samples,
+            use_extended_descriptions=use_extended_descriptions
         )
 
         self.imgs = self.samples

@@ -42,8 +42,6 @@ class Transforms:
         return image
 
 
-BASE_PATH = "./test_set_reports"
-
 def get_dummy_pipeline():
     pipeline = A.Compose([
         A.Resize(width=320,
@@ -113,11 +111,15 @@ def calculate_test_accuracy(
     plt.rcParams.update({'font.size': 16})
     plt.figure(figsize=(10, 5))
     sn.heatmap(df_cm, annot=True, cmap='viridis', fmt='g')
-    Path(os.path.join(BASE_PATH,args.text_model)).mkdir(parents=True, exist_ok=True)
+
+    BASE_PATH = args.base_path
+    subfolder = "test_set_reports"
+
+    Path(os.path.join(BASE_PATH, subfolder)).mkdir(parents=True, exist_ok=True)
     plt.savefig(
-        os.path.join(BASE_PATH,args.text_model,
-                     'conf_matrix_text_model_{}_class_weights_{}_test_set_acc_{:.2f}.png'.format(
-                         args.text_model, args.balance_weights, test_acc)))
+        os.path.join(BASE_PATH, subfolder,
+                     'conf_matrix_text_model_{}_test_set_acc_{:.5f}.png'.format(
+                         args.text_model, test_acc)))
 
     report = classification_report(torch.tensor(all_labels).cpu(),
                                    torch.tensor(all_preds).cpu(),
@@ -128,8 +130,8 @@ def calculate_test_accuracy(
                                         target_names=classes, output_dict=True)
 
     dataframe = pd.DataFrame.from_dict(report_dict)
-    dataframe.to_csv(os.path.join(BASE_PATH,args.text_model,
-                                  "text_model_{}_report_test_set_acc_{:.2f}.csv".format(args.text_model, test_acc)),
+    dataframe.to_csv(os.path.join(BASE_PATH, subfolder,
+                                  "text_model_{}_report_test_set_acc_{:.5f}.csv".format(args.text_model, test_acc)),
                      index=True)
 
     return test_acc, report

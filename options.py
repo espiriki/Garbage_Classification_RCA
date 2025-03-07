@@ -67,5 +67,11 @@ def args_parser():
     parser.add_argument('--name', type=str,
                         help='Run description')
 
+    parser.add_argument('--ext_desc',
+                        action=argparse.BooleanOptionalAction, default=False, help="Use extended descriptions")
+
+    parser.add_argument('--reverse',
+                        action=argparse.BooleanOptionalAction, default=False, help="Use RCA")
+
     args = parser.parse_args()
     return args

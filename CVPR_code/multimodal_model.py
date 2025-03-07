@@ -7,7 +7,7 @@ from transformers import DistilBertTokenizer, BartTokenizer
 from transformers import BertTokenizer
 import numpy as np
 import sys
-
+import torch.nn.functional as F
 
 class SelfAttention(torch.nn.Module):
     def __init__(self, d_in, d_out_kq, d_out_v, name):
@@ -26,11 +26,10 @@ class SelfAttention(torch.nn.Module):
         queries = self.W_query(x)
         values = self.W_value(x)
 
-        attn_scores = torch.matmul(queries, keys.transpose(-1, -2))
+        attn_scores = torch.matmul(queries/self.d_out_kq**0.5,
+                                   keys.transpose(-1, -2))
 
-        attn_weights = torch.softmax(
-            attn_scores/self.d_out_kq**0.5, dim=-1
-        )
+        attn_weights = torch.softmax(attn_scores, dim=-1)
 
         context_vec = attn_weights.matmul(values)
 
@@ -56,11 +55,10 @@ class ReverseCrossAttention(torch.nn.Module):
         keys_2 = self.W_key(x_2)
         values_2 = self.W_value(x_2)
 
-        attn_scores = torch.matmul(queries_1, keys_2.transpose(-1, -2))
+        attn_scores = torch.matmul(queries_1/self.d_out_kq ** 0.5,
+                                   keys_2.transpose(-1, -2))
 
-        attn_weights = torch.softmax(
-            attn_scores/self.d_out_kq**0.5, dim=-1
-        )
+        attn_weights = F.softmax(attn_scores, dim=-1)
 
         assert (attn_weights.shape[1] == attn_weights.shape[2])
 

@@ -25,6 +25,7 @@ import time
 from CVPR_code.CustomImageTextFolder import *
 from CVPR_code.text_models import *
 from CVPR_code.multimodal_model import *
+from CVPR_code.mha_multimodal_model import *
 from torchmetrics.classification import ConfusionMatrix
 import ssl
 from sklearn.metrics import classification_report
@@ -70,6 +71,7 @@ def get_class_weights(train_dataset_path):
 
     class_weights = []
 
+    print(num_samples_each_class)
     for i in range(_num_classes):
         class_weight = total_num_samples_dataset / \
             (_num_classes * num_samples_each_class[i])
@@ -199,7 +201,7 @@ def calculate_set_accuracy(
 
 def save_model_weights(model, text_model_name, image_model_name, epoch_num, val_acc, hw_device, fine_tuning, class_weights, opt):
 
-    base = os.path.join("model_weights", text_model_name+"_"+image_model_name)
+    base = os.path.join("model_weights", "using_MHA")
     Path(os.path.join(BASE_PATH,base)).mkdir(parents=True, exist_ok=True)    
 
     if fine_tuning:
@@ -263,7 +265,7 @@ if __name__ == '__main__':
         _batch_size = 32
         _batch_size_FT = 2
     else:
-        _batch_size = 16
+        _batch_size = 64
         _batch_size_FT = 16
 
     if args.late_fusion == "gated":
@@ -309,6 +311,15 @@ if __name__ == '__main__':
             args.num_neurons_FC,
             args.text_model,
             _batch_size)
+
+    elif args.late_fusion == "MHA":
+        global_model = MHA_RCA(
+            args.model_dropout,
+            args.image_text_dropout,
+            args.image_prob_dropout,
+            args.text_model,
+            _num_classes,
+            args.reverse)
     else:
         print("Wrong late fusion strategy: ", args.late_fusion)
         sys.exit(1)
@@ -328,6 +339,8 @@ if __name__ == '__main__':
     print("Late Fusion strategy: {}".format(args.late_fusion))
     print("Num neurons FC: {}".format(args.num_neurons_FC))
     print("Prob Img Aug: {}".format(args.prob_aug))
+    print("Using extended descriptions: {}".format(args.ext_desc))
+    print("Using RCA: {}".format(args.reverse))
 
     print("Training for {} epochs".format(args.epochs))
     if args.tl is True:
@@ -361,15 +374,14 @@ if __name__ == '__main__':
     now = datetime.now(timezone)
     date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
     print("Starting W&B...")
+    wandb.login(
+        key="36e7c705c7a74e406efd7707d34d4de7974115a0")
     run = wandb.init(
-        project="Garbage Classification Both - Dataset v3 - better fusion - comparison",
+        project="Using MHA",
         config=config,
-        # name="Both models: " +
-        # str(args.text_model) +
-        # str(args.image_model) +
-        # " " + str(date_time) +
-        # " " + str(args.late_fusion)
-        name="Final runs with distilbert and effnetv2 medium"
+        name="Original github code - WITH RCA: " +
+        " " + str(date_time) +
+        " " + str(args.late_fusion)
     )
     print("Done!")
 
@@ -471,25 +483,29 @@ if __name__ == '__main__':
                                                     batch_size=_batch_size,
                                                     shuffle=True,
                                                     num_workers=_num_workers,
-                                                    pin_memory=True)
+                                                    pin_memory=True,
+                                                    drop_last=True)
 
     data_loader_val = torch.utils.data.DataLoader(dataset=val_data,
                                                   batch_size=_batch_size,
                                                   shuffle=True,
                                                   num_workers=_num_workers,
-                                                  pin_memory=True)
+                                                  pin_memory=True,
+                                                  drop_last=True)
 
     data_loader_train_FT = torch.utils.data.DataLoader(dataset=train_data,
                                                        batch_size=_batch_size_FT,
                                                        shuffle=True,
                                                        num_workers=_num_workers,
-                                                       pin_memory=True)
+                                                       pin_memory=True,
+                                                       drop_last=True)
 
     data_loader_val_FT = torch.utils.data.DataLoader(dataset=val_data,
                                                      batch_size=_batch_size_FT,
                                                      shuffle=True,
                                                      num_workers=_num_workers,
-                                                     pin_memory=True)
+                                                     pin_memory=True,
+                                                     drop_last=True)
 
     print(f"Total num of samples: {len(train_data)}")
     for i in range(_num_classes):
@@ -626,8 +642,13 @@ if __name__ == '__main__':
         if val_acc_text_only > max_txt_only_acc:
             max_txt_only_acc = val_acc_text_only
 
+        elapsed_time_with_metrics_calc = time.time() - st
+        print('Epoch time with calcs: {:.1f}'.format(
+            elapsed_time_with_metrics_calc))
+
         wandb.log({'epoch': epoch,
                    'epoch_time_seconds': elapsed_time,
+                   'epoch_time_with_metrics': elapsed_time_with_metrics_calc,
                    'train_loss_avg': train_loss_avg,
                    'train_accuracy_history': train_accuracy,
                    'val_accuracy_history': val_accuracy,
@@ -775,8 +796,13 @@ if __name__ == '__main__':
             if val_acc_text_only > max_txt_only_acc:
                 max_txt_only_acc = val_acc_text_only
             
+            elapsed_time_with_metrics_calc = time.time() - st
+            print('Epoch time with calcs: {:.1f}'.format(
+                elapsed_time_with_metrics_calc))
+
             wandb.log({'epoch': epoch,
                        'epoch_time_seconds': elapsed_time,
+                       'epoch_time_with_metrics': elapsed_time_with_metrics_calc,
                        'train_loss_avg': ft_train_loss_avg,
                        'train_accuracy_history': train_accuracy,
                        'val_accuracy_history': val_accuracy,

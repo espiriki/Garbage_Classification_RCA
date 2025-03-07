@@ -291,6 +291,7 @@ if __name__ == '__main__':
     print("Using class weights: {}".format(args.balance_weights))
     print("Optimizer: {}".format(args.opt))
     print("Grad Acc steps: {}".format(args.acc_steps))
+    print("Using extended descriptions: {}".format(args.ext_desc))
 
     print("Training for {} epochs".format(args.epochs))
     if args.tl is True:
@@ -342,7 +343,8 @@ if __name__ == '__main__':
         root=os.path.join(BASE_PATH, dataset_folder),
         tokens_max_len=_max_len,
         tokenizer_text=_tokenizer,
-        transform=Transforms(img_transf=get_dummy_pipeline()))
+        transform=Transforms(img_transf=get_dummy_pipeline()),
+        use_extended_descriptions=args.ext_desc)
 
     aux = [args.dataset_folder_name, VAL_DATASET_PATH]
     dataset_folder = '_'.join(aux)
@@ -350,7 +352,8 @@ if __name__ == '__main__':
         root=os.path.join(BASE_PATH, dataset_folder),
         tokens_max_len=_max_len,
         tokenizer_text=_tokenizer,
-        transform=Transforms(img_transf=get_dummy_pipeline()))
+        transform=Transforms(img_transf=get_dummy_pipeline()),
+        use_extended_descriptions=args.ext_desc)
 
     _num_workers = 16
 
