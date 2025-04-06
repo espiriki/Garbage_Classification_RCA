@@ -1,7 +1,7 @@
 # Offical Git Repo for the paper "Multimodal Garbage Classification Using Reverse Cross Attention"
 
 ## Instructions on how to repo the results in the paper
-First, download the dataset [here](https://zenodo.org/uploads/10215592). Unzip the folders **CVPR_2024_dataset_Train**, **CVPR_2024_dataset_Val**, **CVPR_2024_dataset_Test** it into the root folder of this repo.
+First, download the dataset [here]([https://zenodo.org/uploads/10215592](https://zenodo.org/records/15164214?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjY2MDJhM2IyLWUyOGItNDVkMy1hNjBhLWMzNWQ2MGNlZWJmMSIsImRhdGEiOnt9LCJyYW5kb20iOiI0OGVhZDllM2VhNjIyZDkzODllMDU5NDlhODNkOWFlYiJ9.XV63eS4QrqiYQI6T8ZFmFjZRseDPPnrn5pTzzSsDoBqXAVryWjbs7Fz0sP5FW9qZqcSA916HiwLuhRv09HEOAQ)). Unzip the folders **CVPR_2024_dataset_Train**, **CVPR_2024_dataset_Val**, **CVPR_2024_dataset_Test** it into the root folder of this repo.
 
 Then, to repro the results in the test set, download the saved model weights from the previous link and extract the *.pth files into the folder **saved_model_weights** of this repo.
 
