@@ -1,4 +1,4 @@
-# Offical Git Repo for the paper "Combining Natural Language and Images for Garbage Classification: A Public Benchmark"
+# Offical Git Repo for the paper "Multimodal Garbage Classification Using Reverse Cross Attention"
 
 ## Instructions on how to repo the results in the paper
 First, download the dataset [here](https://zenodo.org/uploads/10215592). Unzip the folders **CVPR_2024_dataset_Train**, **CVPR_2024_dataset_Val**, **CVPR_2024_dataset_Test** it into the root folder of this repo.
@@ -83,9 +83,9 @@ To repro the training process of the **GPT2**, use the following command:
 
     python main_text.py --text_model=gpt2 --dataset_folder_name=CVPR_2024_dataset --ft_epochs=50 --opt=adamw --epochs=50 --balance_weights --reg=0.1 --lr=0.0005
 
-To repro the training process of the multi-modal **EfficientNetV2 + Distilbert**, use the following command:
+To repro the training process of the multi-modal **MM-RCA**, use the following command:
 
-    python main_both.py --dataset_folder_name=CVPR_2024_dataset --ft_epochs=25 --fraction_lr=3 --image_prob_dropout=0.2 --late_fusion=classic --lr=0.01 --image_text_dropout=0.0 --epochs=45 --opt=sgd --reg=0.1 --balance_weights --acc_steps=10 --acc_steps_FT=10 --prob_aug=0.95 --model_dropout=0.6 --num_neurons_FC=256
+    python main_both.py --dataset_folder_name=CVPR_2024_dataset ft_epochs=40 --fraction_lr=3 --image_prob_dropout=0.2 --late_fusion=MMF --lr=0.0016 --image_text_dropout=0.0 --epochs=60 --opt=sgd --reg=0.00 --balance_weights --acc_steps=10 --acc_steps_FT=10 --prob_aug=1.00 --model_dropout=0.6 --num_neurons_FC=256 --text_model=distilbert --heads=16 --reverse
 
 
 ### Test Set Results
@@ -164,6 +164,6 @@ To repro the results in the test set of the **GPT2** model , use the following c
 
     python calculate_test_accuracy_text.py --text_model=gpt2 --model_path=./saved_model_weights/BEST_model_gpt2.pth --dataset_folder_name=./CVPR_2024_dataset_Test/
 
-To repro the results in the test set of the **EfficientNetV2 + Distilbert** model , use the following command:
+To repro the results in the test set of the **MM-RCA** model , use the following command:
 
     python calculate_test_accuracy_both.py --model_path=./saved_model_weights/BEST_model_eff_v2_medium_plus_distilbert.pth --dataset_folder_name=./CVPR_2024_dataset_Test/ --image_prob_dropout=0.0 --image_text_dropout=0.00
