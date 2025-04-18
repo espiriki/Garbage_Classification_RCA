@@ -156,12 +156,16 @@ if __name__ == '__main__':
     torch.manual_seed(42)
     np.random.seed(42)
 
-    global_model = EffV2MediumAndDistilbertClassic(
+    _batch_size = 16
+
+    global_model = EffV2MediumAndDistilbertMMF(
         _num_classes,
         args.model_dropout,
         args.image_text_dropout,
         args.image_prob_dropout,
-        args.num_neurons_FC) 
+        args.num_neurons_FC,
+        args.text_model,
+        _batch_size) 
 
     model_name = args.model_path
     global_model.load_state_dict(torch.load(model_name))
@@ -201,7 +205,6 @@ if __name__ == '__main__':
     print("Num of test samples: {}".format(len(test_data)))
 
     _num_workers = 8
-    _batch_size = 32
 
     data_loader_test = torch.utils.data.DataLoader(dataset=test_data,
                                                    batch_size=_batch_size,
