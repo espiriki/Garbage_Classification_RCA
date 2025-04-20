@@ -67,5 +67,11 @@ def args_parser():
     parser.add_argument('--name', type=str,
                         help='Run description')
 
+    parser.add_argument('--reverse',
+                        action=argparse.BooleanOptionalAction, default=False, help="Use reverse weights")
+
+    parser.add_argument('--heads', type=int, default=8,
+                        help='Num heads in MHA')
+
     args = parser.parse_args()
     return args

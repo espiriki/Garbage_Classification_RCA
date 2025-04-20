@@ -197,22 +197,27 @@ def calculate_set_accuracy(
         return acc, report
 
 
-def save_model_weights(model, text_model_name, image_model_name, epoch_num, val_acc, hw_device, fine_tuning, class_weights, opt):
+def save_model_weights(
+        model, text_model_name, image_model_name,
+        epoch_num, val_acc, hw_device, fine_tuning, opt,
+        heads, reverse):
 
     base = os.path.join("model_weights", text_model_name+"_"+image_model_name)
     Path(os.path.join(BASE_PATH,base)).mkdir(parents=True, exist_ok=True)    
 
     if fine_tuning:
-        filename = "BEST_model_{}_FT_EPOCH_{}_LR_{}_Reg_{}_FractionLR_{}_OPT_{}_VAL_ACC_{:.5f}".format(
+        filename = "BEST_model_{}_FT_EPOCH_{}_LR_{}_Reg_{}_FractionLR_{}_OPT_{}_VAL_ACC_{:.9f}".format(
             text_model_name+"_"+image_model_name, epoch_num+1, args.lr, args.reg, args.fraction_lr, opt, val_acc)
 
     else:
 
-        filename = "BEST_model_{}_epoch_{}_LR_{}_Reg_{}_VAL_ACC_{:.5f}_".format(
+        filename = "BEST_model_{}_epoch_{}_LR_{}_Reg_{}_VAL_ACC_{:.9f}_".format(
             text_model_name+"_"+image_model_name, epoch_num+1, args.lr, args.reg, val_acc)
 
     current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     filename = filename + current_time
+    filename = filename + "heads_" + str(heads) + "_"
+    filename = filename + "reverse_" + str(reverse) + "_"
     full_path = os.path.join(BASE_PATH,base,filename)
     full_path = full_path + ".pth"
 
@@ -308,7 +313,9 @@ if __name__ == '__main__':
             args.image_prob_dropout,
             args.num_neurons_FC,
             args.text_model,
-            _batch_size)
+            _batch_size,
+            args.heads,
+            args.reverse)
     else:
         print("Wrong late fusion strategy: ", args.late_fusion)
         sys.exit(1)
@@ -357,19 +364,27 @@ if __name__ == '__main__':
         num_neurons_FC=args.num_neurons_FC
     )
 
+    # save_model_weights(global_model, "distilbert",
+    #                    "EffNetv2-Medium", 0, 20.0, "cuda:0", True, "sgd")
+
     timezone = pytz.timezone('America/Edmonton')
     now = datetime.now(timezone)
     date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
     print("Starting W&B...")
+    title = "With {} heads and RCA: {} - ".format(args.heads, args.reverse) + \
+        str(date_time)
     run = wandb.init(
-        project="Garbage Classification Both - Dataset v3 - better fusion - comparison",
+        project="Fixing CVPR 2025 - same size of cross attention output for both",
         config=config,
         # name="Both models: " +
         # str(args.text_model) +
         # str(args.image_model) +
         # " " + str(date_time) +
         # " " + str(args.late_fusion)
-        name="Final runs with distilbert and effnetv2 medium"
+        name=title
+        # rodar com 8 heads e nao RCA
+        # rodar com 16 heads e nao rca
+
     )
     print("Done!")
 
@@ -585,7 +600,7 @@ if __name__ == '__main__':
         if val_accuracy > max_val_accuracy:
             print("Best model obtained based on Val Acc. Saving it!")
             save_model_weights(global_model, args.text_model, args.image_model,
-                               epoch, val_accuracy, device, False, args.balance_weights, args.opt)
+                               epoch, val_accuracy, device, False, args.opt, args.heads, args.reverse)
             max_val_accuracy = val_accuracy
             best_epoch = epoch
         else:
@@ -732,7 +747,7 @@ if __name__ == '__main__':
             if val_accuracy > max_val_accuracy:
                 print("Fine Tuning: best model obtained based on Val Acc. Saving it!")
                 save_model_weights(global_model, args.text_model, args.image_model,
-                                   epoch, val_accuracy, device, True, args.balance_weights, args.opt)
+                                   epoch, val_accuracy, device, True, args.opt, args.heads, args.reverse)
                 best_epoch = epoch
                 max_val_accuracy = val_accuracy
             else:
