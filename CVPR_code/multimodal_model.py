@@ -9,110 +9,141 @@ import numpy as np
 import sys
 import torch.nn.functional as F
 
+
+class ScaledDotProductAttention(torch.nn.Module):
+    ''' Scaled Dot-Product Attention '''
+
+    def __init__(self, temperature, reverse, attn_dropout=0.1):
+        super().__init__()
+        self.reverse = reverse
+        self.temperature = temperature
+        self.dropout = torch.nn.Dropout(attn_dropout)
+
+    def forward(self, q, k, v):
+
+        attn = torch.matmul(q / self.temperature, k.transpose(2, 3))
+
+        softmax_output = F.softmax(attn, dim=-1)
+
+        if self.reverse:
+            print("RCA!!!")
+            dimension = softmax_output.shape[-1]
+            softmax_output = (1.0-softmax_output)/(dimension-1)
+
+        attn = self.dropout(softmax_output)
+        output = torch.matmul(attn, v)
+
+        return output, attn
+
+
 class SelfAttention(torch.nn.Module):
-    def __init__(self, d_model, dk, dv):
-        super(SelfAttention, self).__init__()
-        self.dk = dk
-        self.W_query = torch.nn.Linear(d_model, dk)
-        self.W_key = torch.nn.Linear(d_model, dk)
-        self.W_value = torch.nn.Linear(d_model, dv)
+    def __init__(self, n_head, d_model, d_k, d_v, dropout=0.1):
+        super().__init__()
 
-        # Normalization layer after attention
-        self.norm = torch.nn.LayerNorm(dv)
-        # self.relu = torch.nn.ReLU()
+        self.n_head = n_head
+        self.d_k = d_k
+        self.d_v = d_v
 
-    def forward(self, x):
+        self.w_qs = torch.nn.Linear(d_model, n_head * d_k, bias=False)
+        self.w_ks = torch.nn.Linear(d_model, n_head * d_k, bias=False)
+        self.w_vs = torch.nn.Linear(d_model, n_head * d_v, bias=False)
+        self.fc = torch.nn.Linear(n_head * d_v, d_model, bias=False)
 
-        # print("input shape:",x.shape)
+        self.attention = ScaledDotProductAttention(
+            temperature=d_k ** 0.5, reverse=False)
 
-        queries = self.W_query(x)
-        keys = self.W_key(x)
-        values = self.W_value(x)
+        self.dropout = torch.nn.Dropout(dropout)
+        self.layer_norm = torch.nn.LayerNorm(d_model, eps=1e-6)
 
-        # print("queries shape:",queries.shape)
-        # print("keys shape:",keys.shape)
-        # print("values shape:",values.shape)
+    def forward(self, q, k, v, mask=None):
 
-        keys_transpose = keys.transpose(-1, -2)
+        d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
+        sz_b, len_q, len_k, len_v = q.size(0), q.size(1), k.size(1), v.size(1)
 
-        # print("keys transpose shape:",keys_transpose.shape)
+        residual = q
 
-        attn_scores = torch.matmul(queries, keys_transpose)
+        # Pass through the pre-attention projection: b x lq x (n*dv)
+        # Separate different heads: b x lq x n x dv
+        q = self.w_qs(q).view(sz_b, len_q, n_head, d_k)
+        k = self.w_ks(k).view(sz_b, len_k, n_head, d_k)
+        v = self.w_vs(v).view(sz_b, len_v, n_head, d_v)
 
-        attn_scores = attn_scores / (self.dk**0.5)
+        # Transpose for attention dot product: b x n x lq x dv
+        q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
 
-        # print("attention scores shape:",attn_scores.shape)
+        if mask is not None:
+            mask = mask.unsqueeze(1)   # For head axis broadcasting.
 
-        attn_weights = torch.softmax(attn_scores, dim=-1)
+        q, _ = self.attention(q, k, v)
 
-        # print("attention weights shape:",attn_weights.shape)
+        # Transpose to move the head dimension back: b x lq x n x dv
+        # Combine the last two dimensions to concatenate all the heads together: b x lq x (n*dv)
+        q = q.transpose(1, 2).contiguous().view(sz_b, len_q, -1)
+        q = self.dropout(self.fc(q))
+        q += residual
 
-        attention = torch.matmul(attn_weights, values)
+        q = self.layer_norm(q)
 
-        # print("attention shape:",attention.shape)
-
-        output = attention
-        output = self.norm(output)
-
-        return output
+        return q
 
 
 class CrossAttention(torch.nn.Module):
-    def __init__(self, d_model_x1, d_model_x2, dk, dv, reverse=False):
+    def __init__(self, n_head, d_model_x1, d_model_x2, dk, dv, reverse=False):
         super().__init__()
+
+        self.n_head = n_head
         self.dk = dk
-        self.W_query = torch.nn.Linear(d_model_x1, dk)
-        self.W_key = torch.nn.Linear(d_model_x2, dk)
-        self.W_value = torch.nn.Linear(d_model_x2, dv)
+        self.dv = dv
+        self.w_qs = torch.nn.Linear(d_model_x1, n_head * dk, bias=False)
+        self.w_ks = torch.nn.Linear(d_model_x2, n_head * dk, bias=False)
+        self.w_vs = torch.nn.Linear(d_model_x2, n_head * dv, bias=False)
+        self.fc = torch.nn.Linear(n_head * dv, d_model_x2, bias=False)
+
+        self.residual_proj = torch.nn.Identity()
+        if d_model_x1 != n_head * dv:
+            self.residual_proj = torch.nn.Linear(d_model_x1, n_head * dv)
+
+        self.attention = \
+            ScaledDotProductAttention(temperature=dk ** 0.5, reverse=reverse)
+
         self.reverse = reverse
         self.first_time = False
 
-        self.norm = torch.nn.LayerNorm(dv)
+        self.dropout = torch.nn.Dropout(0.1)
+        self.norm = torch.nn.LayerNorm(d_model_x2)
 
-    def forward(self, x_1, x_2):
+    def forward(self, q, k, v):
 
-        # print("CROSS: input shape 1:",x_1.shape)
-        # print("CROSS: input shape 2:",x_2.shape)
+        d_k, d_v, n_head = self.dk, self.dv, self.n_head
+        sz_b, len_q, len_k, len_v = q.size(0), q.size(1), k.size(1), v.size(1)
 
-        queries_x1 = self.W_query(x_1)
-        keys_x2 = self.W_key(x_2)
-        values_x2 = self.W_value(x_2)
+        residual = q
+        # print("residual shape:", residual.shape)
 
-        # print("CROSS: queries_x1 shape:", queries_x1.shape)
-        # print("CROSS: keys_x2 shape:", keys_x2.shape)
-        # print("CROSS: values_x2 shape:", values_x2.shape)
+        # Pass through the pre-attention projection: b x lq x (n*dv)
+        # Separate different heads: b x lq x n x dv
+        q = self.w_qs(q).view(sz_b, len_q, n_head, d_k)
+        k = self.w_ks(k).view(sz_b, len_k, n_head, d_k)
+        v = self.w_vs(v).view(sz_b, len_v, n_head, d_v)
 
-        keys_transpose = keys_x2.transpose(-1, -2)
+        # Transpose for attention dot product: b x n x lq x dv
+        q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
 
-        # print("CROSS: keys_x2 transpose shape:",keys_transpose.shape)
+        q, _ = self.attention(q, k, v)
 
-        attn_scores = torch.matmul(queries_x1, keys_transpose)
+        # Transpose to move the head dimension back: b x lq x n x dv
+        # Combine the last two dimensions to concatenate all the heads together: b x lq x (n*dv)
+        q = q.transpose(1, 2).contiguous().view(sz_b, len_q, -1)
+        q = self.dropout(self.fc(q))
 
-        attn_scores = attn_scores / (self.dk**0.5)
+        # print("Q shape:", q.shape)
+        residual = self.residual_proj(residual)
 
-        # print("CROSS: attention scores shape:",attn_scores.shape)
+        q += residual
 
-        attn_weights = F.softmax(attn_scores, dim=-1)
+        q = self.norm(q)
 
-        # print("CROSS: attention weights shape:",attn_weights.shape)
-
-        assert (attn_weights.shape[1] == attn_weights.shape[2])
-
-        if self.reverse:
-            if not self.first_time:
-                print("REVERSE WEIGHTS!")
-                self.first_time = True
-            dimension = attn_weights.shape[1]
-            attn_weights = (1.0-attn_weights)/(dimension-1)
-
-        attention = torch.matmul(attn_weights, values_x2)
-
-        # print("CROSS: attention shape:",attention.shape)
-
-        output = attention
-        output = self.norm(output)
-
-        return output
+        return q
 
 def decision(probability):
     return np.random.rand(1)[0] < probability
@@ -121,11 +152,12 @@ def eff_net_v2():
 
     model = efficientnet_v2_m(weights='IMAGENET1K_V1')
 
+    # Remove classifier and pooling layers
+    # remove avgpool and classifier
+    model = torch.nn.Sequential(*list(model.children())[:-2])
+
     for param in model.parameters():
         param.requires_grad = False
-
-    model.classifier = torch.nn.Sequential(
-        *[model.classifier[i] for i in range(1)])
 
     return model
 
@@ -256,61 +288,90 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
         print("Num heads: ", self.num_heads)
 
         # d_model/h, lets call it "patch size"
-        self.txt_patch_size = int(input_size_txt / self.num_heads)
-        self.img_patch_size = int(input_size_img / self.num_heads)
+        # self.txt_patch_size = int(input_size_txt / self.num_heads)
+        # self.img_patch_size = int(input_size_img / self.num_heads)
 
-        print("txt patch size: ", self.txt_patch_size)
-        print("img patch size: ", self.img_patch_size)
+        # print("txt patch size: ", self.txt_patch_size)
+        # print("img patch size: ", self.img_patch_size)
 
         # dk
-        hidden_attention_size_txt = self.txt_patch_size
-        hidden_attention_size_img = self.img_patch_size
+        # hidden_attention_size_txt = self.txt_patch_size
+        # hidden_attention_size_img = self.img_patch_size
 
         # dv (=dk), like in the paper
-        output_attention_size_txt = hidden_attention_size_txt
-        output_attention_size_img = hidden_attention_size_img
+        # output_attention_size_txt = hidden_attention_size_txt
+        # output_attention_size_img = hidden_attention_size_img
 
-        cross_attention_hidden_size_T_to_I = hidden_attention_size_txt
-        cross_attention_hidden_size_I_to_T = hidden_attention_size_img
+        # cross_attention_hidden_size_T_to_I = hidden_attention_size_txt
+        # cross_attention_hidden_size_I_to_T = hidden_attention_size_img
 
-        cross_attention_output_size_txt = output_attention_size_txt
-        cross_attention_output_size_img = output_attention_size_img
+        # cross_attention_output_size_txt = output_attention_size_txt
+        # cross_attention_output_size_img = output_attention_size_img
 
-        print("self attention parameters text (d_model, d_k, d_v): ",
-              self.txt_patch_size, hidden_attention_size_txt, output_attention_size_txt)
+        # print("self attention parameters text (d_model, d_k, d_v): ",
+        #       self.txt_patch_size, hidden_attention_size_txt, output_attention_size_txt)
 
-        print("self attention parameters img (d_model, d_k, d_v): ",
-              self.img_patch_size, hidden_attention_size_img, output_attention_size_img)
+        # print("self attention parameters img (d_model, d_k, d_v): ",
+        #       self.img_patch_size, hidden_attention_size_img, output_attention_size_img)
+
+        dk = 64
+        dv = 64
 
         # d_model, dk, dv
         self.self_attention_text = SelfAttention(
-            self.txt_patch_size, hidden_attention_size_txt, output_attention_size_txt)
+            self.num_heads,
+            input_size_txt,
+            dk,
+            dv)
 
         self.self_attention_image = SelfAttention(
-            self.img_patch_size, hidden_attention_size_img, output_attention_size_img)
+            self.num_heads,
+            input_size_img,
+            dk,
+            dv)
 
+        dv_cross_t_to_i = int(input_size_img / self.num_heads)
         # d_model_txt, d_model_img, dk, dv
         print("Cross Attention reverse: ", reverse)
+
+        print("dv_cross_t_to_i: ", dv_cross_t_to_i)
+
         self.cross_attention_T_to_I = CrossAttention(
-            self.txt_patch_size, self.img_patch_size,
-            cross_attention_hidden_size_T_to_I, cross_attention_output_size_txt, reverse)
+            self.num_heads,
+            input_size_txt,
+            input_size_img,
+            dk,
+            dv_cross_t_to_i,
+            reverse)
+
+        dv_cross_i_to_t = int(input_size_txt / self.num_heads)
+
+        print("dv_cross_i_to_t: ", dv_cross_i_to_t)
 
         # d_model_img, d_model_txt, dk, dv
         self.cross_attention_I_to_T = CrossAttention(
-            self.img_patch_size, self.txt_patch_size,
-            cross_attention_hidden_size_I_to_T, cross_attention_output_size_img, reverse)
+            self.num_heads,
+            input_size_img,
+            input_size_txt,
+            dk,
+            dv_cross_i_to_t,
+            reverse)
 
-        self.final = torch.nn.Linear(
-            (cross_attention_output_size_txt +
-                cross_attention_output_size_img)*self.num_heads, n_classes)
+        # self.final = torch.nn.Linear(
+        #     (cross_attention_output_size_txt +
+        #         cross_attention_output_size_img)*self.num_heads, n_classes)
 
         self.final_features_only = torch.nn.Linear(
             1280+768, n_classes)
         
+        # self.final_with_everything = torch.nn.Linear(
+        #     (input_size_img +
+        #         input_size_txt)*self.num_heads +
+        #     1280+768, n_classes)
+
         self.final_with_everything = torch.nn.Linear(
-            (cross_attention_output_size_txt +
-                cross_attention_output_size_img)*self.num_heads +
-            1280+768, n_classes)
+            (input_size_img +
+                input_size_txt)*2, n_classes)
 
         self.relu = torch.nn.ReLU()
 
@@ -644,8 +705,13 @@ class EffV2MediumAndDistilbertMMF(EffV2MediumAndDistilbertGated):
         hidden_state = text_output[0]
 
         # Get the image and text features
-        original_text_features = hidden_state[:, 0]
+        original_text_features = hidden_state
         original_image_features = self.image_model(self._images)
+
+        bs, c, h, w = original_image_features.shape
+        original_image_features = \
+            original_image_features.view(
+                bs, c, h * w).permute(0, 2, 1)  # [bs, 225, 1280]
 
         # Normalize
         original_text_features = original_text_features / \
@@ -653,40 +719,58 @@ class EffV2MediumAndDistilbertMMF(EffV2MediumAndDistilbertGated):
         original_image_features = original_image_features / \
             original_image_features.norm(dim=1, keepdim=True)
 
-        # Reshape
-        bs = original_text_features.shape[0]
-        original_text_features_reshaped = \
-            torch.reshape(original_text_features,
-                          (bs, self.num_heads, self.txt_patch_size))
-        original_image_features_reshaped = \
-            torch.reshape(original_image_features,
-                          (bs, self.num_heads, self.img_patch_size))
+        # # Reshape
+        # bs = original_text_features.shape[0]
+        # original_text_features_reshaped = \
+        #     torch.reshape(original_text_features,
+        #                   (bs, self.num_heads, self.txt_patch_size))
+        # original_image_features_reshaped = \
+        #     torch.reshape(original_image_features,
+        #                   (bs, self.num_heads, self.img_patch_size))
 
         # Self attention
         text_self_attention = self.self_attention_text(
-            original_text_features_reshaped)
+            original_text_features,
+            original_text_features,
+            original_text_features)
         img_self_attention = self.self_attention_image(
-            original_image_features_reshaped)
+            original_image_features,
+            original_image_features,
+            original_image_features)
 
         # Cross attention
         complementary_cross_attention_T_I = self.cross_attention_T_to_I(
-            text_self_attention, img_self_attention)
+            text_self_attention,
+            img_self_attention,
+            img_self_attention)
         complementary_cross_attention_I_T = self.cross_attention_I_to_T(
-            img_self_attention, text_self_attention)
+            img_self_attention,
+            text_self_attention,
+            text_self_attention)
 
-        # Flatten (concatenate attention from all heads)
-        complementary_cross_attention_T_I = torch.flatten(
-            complementary_cross_attention_T_I, start_dim=1, end_dim=2)
-        complementary_cross_attention_I_T = torch.flatten(
-            complementary_cross_attention_I_T, start_dim=1, end_dim=2)
+        # # Flatten (concatenate attention from all heads)
+        # complementary_cross_attention_T_I = torch.flatten(
+        #     complementary_cross_attention_T_I, start_dim=1, end_dim=2)
+        # complementary_cross_attention_I_T = torch.flatten(
+        #     complementary_cross_attention_I_T, start_dim=1, end_dim=2)
+
+        pooled_img = complementary_cross_attention_T_I.mean(
+            dim=1)  # → [16, 1280]
+        pooled_txt = complementary_cross_attention_I_T.mean(
+            dim=1)  # → [16, 768]
+
+        pooled_img_orig = original_image_features.mean(
+            dim=1)  # → [16, 1280]
+        pooled_img_txt = original_text_features.mean(
+            dim=1)  # → [16, 1280]
 
         # FC layer to output
         concat_features = torch.cat(
             (
-                complementary_cross_attention_T_I,
-                complementary_cross_attention_I_T,
-                original_image_features,
-                original_text_features
+                pooled_img,
+                pooled_txt,
+                pooled_img_orig,
+                pooled_img_txt
             ), dim=1)
 
         after_dropout = self.drop(concat_features)
