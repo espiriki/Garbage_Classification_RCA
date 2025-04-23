@@ -73,5 +73,8 @@ def args_parser():
     parser.add_argument('--heads', type=int, default=8,
                         help='Num heads in MHA')
 
+    parser.add_argument('--relu',
+                        action=argparse.BooleanOptionalAction, default=True, help="Use RELU at the end of RCA")
+
     args = parser.parse_args()
     return args

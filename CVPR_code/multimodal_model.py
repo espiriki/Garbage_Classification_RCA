@@ -8,6 +8,7 @@ from transformers import BertTokenizer
 import numpy as np
 import sys
 import torch.nn.functional as F
+import random
 
 
 class ScaledDotProductAttention(torch.nn.Module):
@@ -29,6 +30,28 @@ class ScaledDotProductAttention(torch.nn.Module):
             print("RCA!!!")
             dimension = softmax_output.shape[-1]
             softmax_output = (1.0-softmax_output)/(dimension-1)
+        
+        # --------------------------------------------------------------------------
+        print("weights shape:", softmax_output.shape)
+        X = softmax_output.shape[-1]
+        # Flatten the first three dimensions into one for easy indexing
+        flat_tensor = softmax_output.view(-1, X)  # shape: [(A*B*C), X]
+
+        # Randomly choose indices to sample
+        num_samples = 2
+        random_indices = random.sample(range(flat_tensor.size(0)), num_samples)
+        
+        print(f"Sampling {num_samples} entries from weights tensor with shape \
+            {flat_tensor.shape} based on last dimension {X}:")
+        print("len(random_indices): ", len(random_indices))
+        print("Size dimension: ", X)
+        
+        truncate_length = 25
+        for idx in random_indices:
+            full_slice = flat_tensor[idx]
+            print(f"Sample {idx}: {full_slice[:truncate_length]} ...")
+            
+        # --------------------------------------------------------------------------            
 
         attn = self.dropout(softmax_output)
         output = torch.matmul(attn, v)
@@ -88,12 +111,13 @@ class SelfAttention(torch.nn.Module):
 
 
 class CrossAttention(torch.nn.Module):
-    def __init__(self, n_head, d_model_x1, d_model_x2, dk, dv, reverse=False):
+    def __init__(self, n_head, d_model_x1, d_model_x2, dk, dv,relu, reverse=False):
         super().__init__()
 
         self.n_head = n_head
         self.dk = dk
         self.dv = dv
+        self.relu = relu
         self.w_qs = torch.nn.Linear(d_model_x1, n_head * dk, bias=False)
         self.w_ks = torch.nn.Linear(d_model_x2, n_head * dk, bias=False)
         self.w_vs = torch.nn.Linear(d_model_x2, n_head * dv, bias=False)
@@ -111,6 +135,7 @@ class CrossAttention(torch.nn.Module):
 
         self.dropout = torch.nn.Dropout(0.1)
         self.norm = torch.nn.LayerNorm(d_model_x2)
+        self.relu_layer = torch.nn.ReLU()
 
     def forward(self, q, k, v):
 
@@ -118,7 +143,6 @@ class CrossAttention(torch.nn.Module):
         sz_b, len_q, len_k, len_v = q.size(0), q.size(1), k.size(1), v.size(1)
 
         residual = q
-        # print("residual shape:", residual.shape)
 
         # Pass through the pre-attention projection: b x lq x (n*dv)
         # Separate different heads: b x lq x n x dv
@@ -136,12 +160,15 @@ class CrossAttention(torch.nn.Module):
         q = q.transpose(1, 2).contiguous().view(sz_b, len_q, -1)
         q = self.dropout(self.fc(q))
 
-        # print("Q shape:", q.shape)
         residual = self.residual_proj(residual)
 
         q += residual
 
         q = self.norm(q)
+
+        if self.relu:
+            print("Using RELU")
+            q = self.relu_layer(q)
 
         return q
 
@@ -200,6 +227,7 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
                  text_model_name,
                  batch_size,
                  num_heads,
+                 relu,
                  reverse=False):
         super(EffV2MediumAndDistilbertGated, self).__init__()
 
@@ -286,33 +314,7 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
         self.num_heads = num_heads
 
         print("Num heads: ", self.num_heads)
-
-        # d_model/h, lets call it "patch size"
-        # self.txt_patch_size = int(input_size_txt / self.num_heads)
-        # self.img_patch_size = int(input_size_img / self.num_heads)
-
-        # print("txt patch size: ", self.txt_patch_size)
-        # print("img patch size: ", self.img_patch_size)
-
-        # dk
-        # hidden_attention_size_txt = self.txt_patch_size
-        # hidden_attention_size_img = self.img_patch_size
-
-        # dv (=dk), like in the paper
-        # output_attention_size_txt = hidden_attention_size_txt
-        # output_attention_size_img = hidden_attention_size_img
-
-        # cross_attention_hidden_size_T_to_I = hidden_attention_size_txt
-        # cross_attention_hidden_size_I_to_T = hidden_attention_size_img
-
-        # cross_attention_output_size_txt = output_attention_size_txt
-        # cross_attention_output_size_img = output_attention_size_img
-
-        # print("self attention parameters text (d_model, d_k, d_v): ",
-        #       self.txt_patch_size, hidden_attention_size_txt, output_attention_size_txt)
-
-        # print("self attention parameters img (d_model, d_k, d_v): ",
-        #       self.img_patch_size, hidden_attention_size_img, output_attention_size_img)
+        print("RELU: ", relu)
 
         dk = 64
         dv = 64
@@ -342,7 +344,8 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
             input_size_img,
             dk,
             dv_cross_t_to_i,
-            reverse)
+            reverse,
+            relu)
 
         dv_cross_i_to_t = int(input_size_txt / self.num_heads)
 
@@ -355,7 +358,8 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
             input_size_txt,
             dk,
             dv_cross_i_to_t,
-            reverse)
+            reverse,
+            relu)
 
         # self.final = torch.nn.Linear(
         #     (cross_attention_output_size_txt +
@@ -372,8 +376,6 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
         self.final_with_everything = torch.nn.Linear(
             (input_size_img +
                 input_size_txt)*2, n_classes)
-
-        self.relu = torch.nn.ReLU()
 
 
     def forward(self,
@@ -708,25 +710,22 @@ class EffV2MediumAndDistilbertMMF(EffV2MediumAndDistilbertGated):
         original_text_features = hidden_state
         original_image_features = self.image_model(self._images)
 
+        print("original_text_features shape:",
+              original_text_features.shape)
+
         bs, c, h, w = original_image_features.shape
         original_image_features = \
             original_image_features.view(
-                bs, c, h * w).permute(0, 2, 1)  # [bs, 225, 1280]
+                bs, c, h * w).permute(0, 2, 1)
+            
+        print("original_image_features shape:",
+              original_image_features.shape)            
 
         # Normalize
         original_text_features = original_text_features / \
             original_text_features.norm(dim=1, keepdim=True)
         original_image_features = original_image_features / \
             original_image_features.norm(dim=1, keepdim=True)
-
-        # # Reshape
-        # bs = original_text_features.shape[0]
-        # original_text_features_reshaped = \
-        #     torch.reshape(original_text_features,
-        #                   (bs, self.num_heads, self.txt_patch_size))
-        # original_image_features_reshaped = \
-        #     torch.reshape(original_image_features,
-        #                   (bs, self.num_heads, self.img_patch_size))
 
         # Self attention
         text_self_attention = self.self_attention_text(
@@ -747,12 +746,6 @@ class EffV2MediumAndDistilbertMMF(EffV2MediumAndDistilbertGated):
             img_self_attention,
             text_self_attention,
             text_self_attention)
-
-        # # Flatten (concatenate attention from all heads)
-        # complementary_cross_attention_T_I = torch.flatten(
-        #     complementary_cross_attention_T_I, start_dim=1, end_dim=2)
-        # complementary_cross_attention_I_T = torch.flatten(
-        #     complementary_cross_attention_I_T, start_dim=1, end_dim=2)
 
         pooled_img = complementary_cross_attention_T_I.mean(
             dim=1)  # → [16, 1280]

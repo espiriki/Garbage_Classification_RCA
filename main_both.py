@@ -202,17 +202,16 @@ def save_model_weights(
         epoch_num, val_acc, hw_device, fine_tuning, opt,
         heads, reverse):
 
-    base = os.path.join("model_weights", text_model_name+"_"+image_model_name)
+    base = os.path.join("saved_model_weights", "MM-RCA")
     Path(os.path.join(BASE_PATH,base)).mkdir(parents=True, exist_ok=True)    
 
     if fine_tuning:
-        filename = "BEST_model_{}_FT_EPOCH_{}_LR_{}_Reg_{}_FractionLR_{}_OPT_{}_VAL_ACC_{:.9f}".format(
-            text_model_name+"_"+image_model_name, epoch_num+1, args.lr, args.reg, args.fraction_lr, opt, val_acc)
+        filename = "BEST_model_FT_EPOCH_{}_LR_{}_VAL_ACC_{:.6}".format(
+            epoch_num+1, args.lr, val_acc)
 
     else:
 
-        filename = "BEST_model_{}_epoch_{}_LR_{}_Reg_{}_VAL_ACC_{:.9f}_".format(
-            text_model_name+"_"+image_model_name, epoch_num+1, args.lr, args.reg, val_acc)
+        filename = "BEST_model_epoch_{}_LR_{}_VAL_ACC_{:.6f}_".format(epoch_num+1, args.lr, val_acc)
 
     current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     filename = filename + current_time
@@ -315,6 +314,7 @@ if __name__ == '__main__':
             args.text_model,
             _batch_size,
             args.heads,
+            args.relu,
             args.reverse)
     else:
         print("Wrong late fusion strategy: ", args.late_fusion)
@@ -371,7 +371,7 @@ if __name__ == '__main__':
     now = datetime.now(timezone)
     date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
     print("Starting W&B...")
-    title = "With {} heads and RCA: {} - ".format(args.heads, args.reverse) + \
+    title = "With {} heads and RCA: {} and ReLU: {} - ".format(args.heads, args.reverse, args.relu) + \
         str(date_time)
     run = wandb.init(
         project="Fixing CVPR 2025 - same size of cross attention output for both",
