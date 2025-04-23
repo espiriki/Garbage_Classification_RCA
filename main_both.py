@@ -300,15 +300,16 @@ if __name__ == '__main__':
             args.num_neurons_FC,
             args.text_model,
             _batch_size)
-    elif args.late_fusion == "MMF":
-        global_model = EffV2MediumAndDistilbertMMF(
+    elif args.late_fusion == "MM_RCA":
+        global_model = MM_RCA(
             _num_classes,
             args.model_dropout,
             args.image_text_dropout,
             args.image_prob_dropout,
             args.num_neurons_FC,
             args.text_model,
-            _batch_size)
+            _batch_size,
+            args.reverse)
     else:
         print("Wrong late fusion strategy: ", args.late_fusion)
         sys.exit(1)

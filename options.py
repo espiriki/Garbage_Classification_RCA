@@ -67,5 +67,10 @@ def args_parser():
     parser.add_argument('--name', type=str,
                         help='Run description')
 
+    parser.add_argument('--reverse',
+                        action=argparse.BooleanOptionalAction,
+                        default=False,
+                        help="Use RCA or not")
+
     args = parser.parse_args()
     return args

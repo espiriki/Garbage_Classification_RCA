@@ -158,14 +158,15 @@ if __name__ == '__main__':
 
     _batch_size = 16
 
-    global_model = EffV2MediumAndDistilbertMMF(
+    global_model = MM_RCA(
         _num_classes,
         args.model_dropout,
         args.image_text_dropout,
         args.image_prob_dropout,
         args.num_neurons_FC,
         args.text_model,
-        _batch_size) 
+        _batch_size,
+        args.reverse)
 
     model_name = args.model_path
     global_model.load_state_dict(torch.load(model_name))

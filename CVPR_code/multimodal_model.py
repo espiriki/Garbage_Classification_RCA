@@ -42,7 +42,7 @@ class SelfAttention(torch.nn.Module):
 
 
 class ReverseCrossAttention(torch.nn.Module):
-    def __init__(self, d_in_x1, d_in_x2, d_out_kq, d_out_v):
+    def __init__(self, d_in_x1, d_in_x2, d_out_kq, d_out_v, reverse):
         super().__init__()
         self.d_out_kq = d_out_kq
         self.W_query = torch.nn.Linear(d_in_x1, d_out_kq)
@@ -50,6 +50,7 @@ class ReverseCrossAttention(torch.nn.Module):
         self.W_value = torch.nn.Linear(d_in_x2, d_out_v)
         self.norm = torch.nn.LayerNorm(d_out_v)
         self.relu = torch.nn.ReLU()
+        self.reverse = reverse
 
     def forward(self, x_1, x_2):
         queries_1 = self.W_query(x_1)
@@ -64,11 +65,14 @@ class ReverseCrossAttention(torch.nn.Module):
 
         assert (attn_weights.shape[1] == attn_weights.shape[2])
 
-        dimension = attn_weights.shape[1]
-        reversed_weights = (1.0-attn_weights)/(dimension-1)
-
-        context_vec = reversed_weights.matmul(values_2)
-        # context_vec = attn_weights.matmul(values_2)
+        if self.reverse:
+            print("RCA!!")
+            dimension = attn_weights.shape[1]
+            reversed_weights = (1.0-attn_weights)/(dimension-1)
+            context_vec = reversed_weights.matmul(values_2)
+        else:
+            print("NON RCA")
+            context_vec = attn_weights.matmul(values_2)
 
         output = context_vec
         output = self.norm(output)
@@ -128,7 +132,8 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
                  img_prob_dropout,
                  num_neurons_fc,
                  text_model_name,
-                 batch_size):
+                 batch_size,
+                 reverse):
         super(EffV2MediumAndDistilbertGated, self).__init__()
 
         self.text_model_name = text_model_name
@@ -228,11 +233,11 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
 
         self.cross_attention_1 = ReverseCrossAttention(
             output_attention_size, output_attention_size,
-            cross_attention_hidden_size, cross_attention_output_size)
+            cross_attention_hidden_size, cross_attention_output_size, reverse)
 
         self.cross_attention_2 = ReverseCrossAttention(
             output_attention_size, output_attention_size,
-            cross_attention_hidden_size, cross_attention_output_size)
+            cross_attention_hidden_size, cross_attention_output_size, reverse)
 
         self.final = torch.nn.Linear(
             cross_attention_output_size*self.num_patches*2, n_classes)
@@ -552,7 +557,7 @@ class EffV2MediumAndDistilbertCLIP(EffV2MediumAndDistilbertGated):
         return final_output
 
 
-class EffV2MediumAndDistilbertMMF(EffV2MediumAndDistilbertGated):
+class MM_RCA(EffV2MediumAndDistilbertGated):
 
     def forward(self,
                 _input_ids,
@@ -561,8 +566,6 @@ class EffV2MediumAndDistilbertMMF(EffV2MediumAndDistilbertGated):
                 eval=False,
                 remove_image=False,
                 remove_text=False):
-
-        # print("MMF forward")
 
         self._images = _images
         self._input_ids = _input_ids
