@@ -8,6 +8,33 @@ from transformers import BertTokenizer
 import numpy as np
 import sys
 
+class EfficientNetV2MFullFeatureExtractor(torch.nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.stem = model.features[:2]
+        self.stage1 = model.features[2]
+        self.stage2 = model.features[3]
+        self.stage3 = model.features[4]
+        self.stage4 = model.features[5]
+        self.stage5 = model.features[6]
+        self.stage6 = model.features[7]
+        self.final_conv = model.features[8]  # Conv-BN-ReLU
+        self.avgpool = model.avgpool
+        self.classifier = model.classifier
+
+    def forward(self, x):
+        x = self.stem(x)
+        x = self.stage1(x)
+        x = self.stage2(x)
+        out_stage3 = self.stage3(x)
+        x = self.stage4(out_stage3)
+        x = self.stage5(x)
+        out_stage6 = self.stage6(x)
+        x = self.final_conv(out_stage6)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        return out_stage3, out_stage6, x
+
 
 class SelfAttention(torch.nn.Module):
     def __init__(self, d_in, d_out_kq, d_out_v, name):
@@ -93,7 +120,10 @@ def eff_net_v2():
     model.classifier = torch.nn.Sequential(
         *[model.classifier[i] for i in range(1)])
 
-    return model
+    extractor = EfficientNetV2MFullFeatureExtractor(model)
+
+    # sys.exit(0)
+    return extractor
 
 def distilbert():
 
@@ -248,6 +278,10 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
         self.final_with_everything = torch.nn.Linear(
             cross_attention_output_size*self.num_patches*2 +
             1280+768, n_classes)
+        
+        self.final_hierarchical_image = torch.nn.Linear(1280+2560+2048, 512)
+        self.final_hierarchical_text = torch.nn.Linear(768*3, 512)
+        self.final_hierarchical_all = torch.nn.Linear(512*2, n_classes)
 
         self.relu = torch.nn.ReLU()
 
@@ -580,8 +614,8 @@ class MM_RCA(EffV2MediumAndDistilbertGated):
 
         # Get the image and text features
         original_text_features = hidden_state[:, 0]
-        original_image_features = self.image_model(self._images)
-
+        _, _, original_image_features = self.image_model(self._images)
+        
         # Normalize
         original_text_features = original_text_features / \
             original_text_features.norm(dim=1, keepdim=True)
@@ -631,3 +665,81 @@ class MM_RCA(EffV2MediumAndDistilbertGated):
         output = self.final_with_everything(after_dropout)
 
         return output
+    
+class Hierarchical(EffV2MediumAndDistilbertGated):
+
+    def forward(self,
+                _input_ids,
+                _attention_mask,
+                _images,
+                eval=False,
+                remove_image=False,
+                remove_text=False):
+
+        self._images = _images
+        self._input_ids = _input_ids
+        self._attention_mask = _attention_mask
+        self.drop_modalities(eval, remove_image, remove_text)
+
+        text_output = self.text_model(
+            input_ids=self._input_ids,
+            attention_mask=self._attention_mask,
+            output_hidden_states=True
+        )
+        hidden_state = text_output[0]
+
+        # Get the image and text features
+        original_text_features = hidden_state[:, 0]
+        hidden_states  = text_output.hidden_states
+        
+       # Extract CLS token embedding (token 0) from layers 2 and 4
+        distilbert_layer_2 = hidden_states[2][:, 0, :]  # Layer 2
+        distilbert_layer_4 = hidden_states[4][:, 0, :]  # Layer 4
+        
+        print("Layer 2 distilbert_layer_2 shape:", distilbert_layer_2.shape)
+        print("Layer 4 distilbert_layer_4 shape:", distilbert_layer_4.shape)
+               
+        out_stage_3, out_stage_6, original_image_features = self.image_model(self._images)
+        
+        out_stage_3_avg_pooling = \
+            torch.nn.AvgPool2d(kernel_size=7, stride=7)(out_stage_3)
+        # → becomes [bs, 160, 4, 4] 
+            
+        out_stage_6_avg_pooling = \
+            torch.nn.AvgPool2d(kernel_size=6, stride=6)(out_stage_6)
+        # → becomes [bs, 512, 2, 2] 
+
+        out_stage_3_avg_pooling = \
+            out_stage_3_avg_pooling.view(out_stage_3_avg_pooling.size(0), -1)
+            
+        out_stage_6_avg_pooling = \
+            out_stage_6_avg_pooling.view(out_stage_6_avg_pooling.size(0), -1)         
+
+        out_stage_3_flattened = out_stage_3_avg_pooling.flatten(start_dim=1)
+        out_stage_6_flattened = out_stage_6_avg_pooling.flatten(start_dim=1) 
+
+        concat_features_image = torch.cat(
+            (
+                out_stage_3_flattened,
+                out_stage_6_flattened,
+                original_image_features,
+            ), dim=1)
+        
+        concat_features_text = torch.cat(
+            (
+                original_text_features,
+                distilbert_layer_2,
+                distilbert_layer_4,
+            ), dim=1)        
+
+        after_dropout_image = self.drop(concat_features_image)
+        after_dropout_text = self.drop(concat_features_text)
+        
+        image = self.final_hierarchical_image(after_dropout_image)
+        text = self.final_hierarchical_text(after_dropout_text)
+
+        output = self.final_hierarchical_all(
+            torch.cat((image, text), dim=1)
+        )
+
+        return output    
