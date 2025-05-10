@@ -348,6 +348,12 @@ if __name__ == '__main__':
         _batch_size = 128
         _batch_size_FT = 52
         args.acc_steps = 3
+    elif model == "shuffle_net":
+        global_model = ShuffleNetV2(_num_classes, args.tl)
+        input_size = (224, 224)
+        _batch_size = 128
+        _batch_size_FT = 52
+        args.acc_steps = 3
     else:
         print("Invalid Model: {}".format(model))
         sys.exit(1)

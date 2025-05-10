@@ -256,3 +256,23 @@ def VisionL16(num_classes=4, transfer_learning=False):
                                  out_features=num_classes)
 
     return model
+
+
+def ShuffleNetV2(num_classes=4, transfer_learning=False):
+
+    if transfer_learning:
+        _weights = 'IMAGENET1K_V1'
+    else:
+        _weights = None
+
+    model = shufflenet_v2_x2_0(weights=_weights)
+
+    if transfer_learning:
+        for param in model.parameters():
+            param.requires_grad = False
+
+    _in_features = model.fc.in_features
+    model.fc = nn.Linear(in_features=_in_features,
+                                    out_features=num_classes)
+
+    return model
