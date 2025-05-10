@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
-from transformers import BertModel, DistilBertModel, RobertaModel, BartForSequenceClassification
+from transformers import BertModel, DistilBertModel, RobertaModel, BartForSequenceClassification, MobileBertForSequenceClassification
 from transformers import BertConfig, DistilBertConfig, RobertaConfig, BartConfig
 from torchvision.models import *
-from transformers import BertTokenizer, DistilBertTokenizer, RobertaTokenizer, BartTokenizer
-from transformers import GPT2Tokenizer, GPT2ForSequenceClassification, GPT2Config
+from transformers import BertTokenizer, DistilBertTokenizer, RobertaTokenizer, BartTokenizer, MobileBertTokenizer
+from transformers import GPT2Tokenizer, GPT2ForSequenceClassification, GPT2Config, MobileBertConfig
 
 class DistilBert(nn.Module):
     def __init__(self, n_classes, drop_ratio):
@@ -158,3 +158,31 @@ class GPT2(nn.Module):
 
     def get_max_token_size(self):
         return GPT2Config().n_positions
+    
+class MobileBERT(nn.Module):
+    def __init__(self, n_classes):
+        super(MobileBERT, self).__init__()
+        self.name = "google/mobilebert-uncased"
+        self.model = MobileBertForSequenceClassification.from_pretrained(self.name)
+    
+        # Freeze all layers for TL
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+        self.model.classifier = \
+            nn.Linear(self.model.classifier.in_features, n_classes)          
+
+    def forward(self, _input_ids, _attention_mask):
+        mobile_bert_output = self.model(
+            input_ids=_input_ids,
+            attention_mask=_attention_mask
+        )
+
+        return mobile_bert_output[0]
+
+    def get_tokenizer(self):
+        tokenizer = MobileBertTokenizer.from_pretrained(self.name)
+        return tokenizer
+
+    def get_max_token_size(self):
+        return MobileBertConfig().max_position_embeddings

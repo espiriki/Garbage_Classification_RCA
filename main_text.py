@@ -278,6 +278,11 @@ if __name__ == '__main__':
         _batch_size = 18
         _batch_size_FT = 4
         args.acc_steps = 12
+    elif args.text_model == "mobile_bert":
+        global_model = MobileBERT(_num_classes)
+        _batch_size = 18
+        _batch_size_FT = 4
+        args.acc_steps = 12        
     else:
         print("Invalid Model: {}".format(args.text_model))
         sys.exit(1)
