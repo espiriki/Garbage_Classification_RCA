@@ -287,7 +287,7 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
         
         # GRU parameters HIERARCHICAL
         
-        modality_dim=500
+        modality_dim = 400
         hidden_dim=500
         proj_dim=450
         num_classes=4
@@ -695,7 +695,6 @@ class MM_RCA(EffV2MediumAndDistilbertGated):
         output = self.final_with_everything(after_dropout)
 
         return output
-    
 class Hierarchical(EffV2MediumAndDistilbertGated):
 
     def forward(self,
@@ -725,7 +724,6 @@ class Hierarchical(EffV2MediumAndDistilbertGated):
        # Extract CLS token embedding (token 0) from layers 2 and 4
         distilbert_layer_2 = hidden_states[2][:, 0, :]  # Layer 2
         distilbert_layer_4 = hidden_states[4][:, 0, :]  # Layer 4
-               
         out_stage_3, out_stage_6, original_image_features = self.image_model(self._images)
         
         out_stage_3_avg_pooling = \
@@ -761,9 +759,9 @@ class Hierarchical(EffV2MediumAndDistilbertGated):
 
         concat_features_image = torch.cat(
             (
+                original_image_features,
                 out_stage_3_flattened,
                 out_stage_6_flattened,
-                original_image_features,
             ), dim=1)
         
         concat_features_text = torch.cat(
@@ -778,6 +776,9 @@ class Hierarchical(EffV2MediumAndDistilbertGated):
         
         image = self.final_hierarchical_image(after_dropout_image)
         text = self.final_hierarchical_text(after_dropout_text)
+
+        image = self.relu(image)
+        text = self.relu(text)
 
         output = self.final_hierarchical_all(
             torch.cat((image, text), dim=1)
@@ -797,6 +798,8 @@ class Hadamard2(torch.nn.Module):
 
     def forward(self, x1, x2):
         return torch.tanh(x1 * self.kernel1 + x2 * self.kernel2 + self.bias)
+
+
 
 class HierarchicalBimodalFusion(EffV2MediumAndDistilbertGated):
     
