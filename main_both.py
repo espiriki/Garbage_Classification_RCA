@@ -324,7 +324,7 @@ if __name__ == '__main__':
             args.reverse)
     elif args.late_fusion == "bimodal":
         _batch_size = 32
-        _batch_size_FT = 12
+        _batch_size_FT = 4
         
         global_model = HierarchicalBimodalFusion(
             _num_classes,
