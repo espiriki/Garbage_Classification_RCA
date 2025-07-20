@@ -197,7 +197,8 @@ def calculate_set_accuracy(
         return acc, report
 
 
-def save_model_weights(model, text_model_name, image_model_name, epoch_num, val_acc, hw_device, fine_tuning, class_weights, opt):
+def save_model_weights(model, text_model_name, image_model_name,\
+    epoch_num, val_acc, hw_device, fine_tuning, class_weights, opt, fusion):
 
     base = os.path.join("model_weights", text_model_name+"_"+image_model_name)
     Path(os.path.join(BASE_PATH,base)).mkdir(parents=True, exist_ok=True)    
@@ -212,6 +213,7 @@ def save_model_weights(model, text_model_name, image_model_name, epoch_num, val_
             text_model_name+"_"+image_model_name, epoch_num+1, args.lr, args.reg, val_acc)
 
     current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    filename = filename + "_" + fusion + "_"
     filename = filename + current_time
     full_path = os.path.join(BASE_PATH,base,filename)
     full_path = full_path + ".pth"
@@ -263,8 +265,8 @@ if __name__ == '__main__':
         _batch_size = 32
         _batch_size_FT = 2
     else:
-        _batch_size = 16
-        _batch_size_FT = 16
+        _batch_size = 32
+        _batch_size_FT = 32
 
     if args.late_fusion == "gated":
         global_model = EffV2MediumAndDistilbertGated(
@@ -302,6 +304,29 @@ if __name__ == '__main__':
             _batch_size)
     elif args.late_fusion == "MM_RCA":
         global_model = MM_RCA(
+            _num_classes,
+            args.model_dropout,
+            args.image_text_dropout,
+            args.image_prob_dropout,
+            args.num_neurons_FC,
+            args.text_model,
+            _batch_size,
+            args.reverse)
+    elif args.late_fusion == "hierarchical":
+        global_model = Hierarchical(
+            _num_classes,
+            args.model_dropout,
+            args.image_text_dropout,
+            args.image_prob_dropout,
+            args.num_neurons_FC,
+            args.text_model,
+            _batch_size,
+            args.reverse)
+    elif args.late_fusion == "bimodal":
+        _batch_size = 32
+        _batch_size_FT = 4
+        
+        global_model = HierarchicalBimodalFusion(
             _num_classes,
             args.model_dropout,
             args.image_text_dropout,
@@ -370,7 +395,7 @@ if __name__ == '__main__':
         # str(args.image_model) +
         # " " + str(date_time) +
         # " " + str(args.late_fusion)
-        name="Final runs with distilbert and effnetv2 medium"
+        name="HIERARCHICAL FUSION: " + str(args.late_fusion) + " " + str(date_time)
     )
     print("Done!")
 
@@ -586,7 +611,7 @@ if __name__ == '__main__':
         if val_accuracy > max_val_accuracy:
             print("Best model obtained based on Val Acc. Saving it!")
             save_model_weights(global_model, args.text_model, args.image_model,
-                               epoch, val_accuracy, device, False, args.balance_weights, args.opt)
+                               epoch, val_accuracy, device, False, args.balance_weights, args.opt, args.late_fusion)
             max_val_accuracy = val_accuracy
             best_epoch = epoch
         else:
@@ -733,7 +758,7 @@ if __name__ == '__main__':
             if val_accuracy > max_val_accuracy:
                 print("Fine Tuning: best model obtained based on Val Acc. Saving it!")
                 save_model_weights(global_model, args.text_model, args.image_model,
-                                   epoch, val_accuracy, device, True, args.balance_weights, args.opt)
+                                   epoch, val_accuracy, device, True, args.balance_weights, args.opt, args.late_fusion)
                 best_epoch = epoch
                 max_val_accuracy = val_accuracy
             else:
