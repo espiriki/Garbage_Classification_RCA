@@ -11,7 +11,9 @@ def args_parser():
     parser.add_argument('--epochs', type=int, default=100,
                         help="number of rounds of training")
     parser.add_argument('--dataset_folder_name', type=str, default="",
-                        help="dataset folder name in the base location")                        
+                        help="dataset folder name in the base location")
+    parser.add_argument('--dataset_folder_name_val', type=str, default="",
+                        help="val dataset folder name in the base location")
     parser.add_argument('--lr', type=float, default=0.001,
                         help='learning rate')
     parser.add_argument('--image_text_dropout', type=float, default=0.33,
@@ -44,6 +46,9 @@ def args_parser():
 
     parser.add_argument('--num_neurons_FC', type=int, default=256,
                         help='Num neurons in FC layers')
+    
+    parser.add_argument('--batch_size', type=int, default=16,
+                        help='Batch size')
 
     parser.add_argument('--opt', type=str, default="sgd",
                         help='Optimizer to use')
