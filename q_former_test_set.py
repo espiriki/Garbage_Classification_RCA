@@ -47,7 +47,7 @@ class MultimodalClassifier(torch.nn.Module):
 def generate_report_and_image(test_report_dict,test_accuracy, conf_matrix):
         
     dataframe = pd.DataFrame.from_dict(test_report_dict)
-    dataframe.to_csv(os.path.join("./BLIP2_report_test_set_acc_{:.2f}.csv".format(test_accuracy)), index=True)
+    dataframe.to_csv(os.path.join("./QFORMER_report_test_set_acc_{:.2f}.csv".format(test_accuracy)), index=True)
 
     df_cm = pd.DataFrame(conf_matrix, index=classes,
                          columns=classes)
@@ -56,7 +56,7 @@ def generate_report_and_image(test_report_dict,test_accuracy, conf_matrix):
     plt.figure(figsize=(10, 5))
     sn.heatmap(df_cm, annot=True, cmap='viridis', fmt='g')
     plt.savefig(
-        os.path.join('./conf_matrix_BLIP2_model_test_set_acc_{:.2f}.png'.format(test_accuracy)))
+        os.path.join('./conf_matrix_QFORMER_model_test_set_acc_{:.2f}.png'.format(test_accuracy)))
 
     print("Test accuracy: {:.2f} %".format(test_accuracy))
     print("Test Report:")
@@ -170,6 +170,7 @@ def calculate_acc(model, classifier, loader, device, processor, dataset):
 
     len_test_set = 2000
     outs=[]
+    preds=[]
     gt_labels=[]
     correct = 0
     total_batches = int(len(loader))+1
@@ -188,14 +189,17 @@ def calculate_acc(model, classifier, loader, device, processor, dataset):
             outs.append(out.detach().cpu().argmax(1))
             preds.append(y_true.detach().cpu())
             
-            correct = torch.sum(torch.eq(outs, preds)).item()
+            outs_2 = torch.cat(outs).view(-1)
+            preds_2 = torch.cat(preds).view(-1)
+
+            correct = torch.sum(torch.eq(outs_2, preds_2)).item()
             
             print("Running test accuracy: {:.3f} %".format(100*(correct/len_test_set)))
 
             print(f"Batch in test:{idx}/{total_batches}", end="\r")
 
     ytrue_ = torch.tensor(np.array(outs)).view(-1)
-    outs_ = torch.tensor(np.array(gt_labels)).view(-1)
+    outs_ = torch.tensor(np.array(preds)).view(-1)
     precision = Precision(task="multiclass",num_classes=4, average='macro')
     recall = Recall(task="multiclass",num_classes=4, average='macro')
     f1 = F1Score(task="multiclass",num_classes=4, average='macro')
