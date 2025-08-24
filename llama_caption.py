@@ -14,7 +14,8 @@ import os
 
 os.environ["HF_HUB_DISABLE_XET"] = "1"
 
-login(token="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")
+value = os.environ.get("HF_API_KEY")
+login(token=value)
 
 args = args_parser()
 
