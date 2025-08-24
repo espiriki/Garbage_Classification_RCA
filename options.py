@@ -77,5 +77,11 @@ def args_parser():
                         default=False,
                         help="Use RCA or not")
 
+    parser.add_argument('--extended_desc_train', type=str,
+                        help='Path to extended description train CSV file')
+
+    parser.add_argument('--extended_desc_val', type=str,
+                        help='Path to extended description val CSV file')
+
     args = parser.parse_args()
     return args
