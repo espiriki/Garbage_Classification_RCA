@@ -237,7 +237,7 @@ model = Blip2ForConditionalGeneration.from_pretrained("Salesforce/blip2-opt-2.7b
 ims = glob.glob(args.dataset_folder_name+"/*/*")
 im=ims[0]
 
-_batch_size = 4
+_batch_size = 16
 _workers = 32
 
 dataset = ImageCaptioningDataset(ims, processor)
