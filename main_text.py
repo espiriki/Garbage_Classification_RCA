@@ -66,7 +66,7 @@ def get_dummy_pipeline():
 
 def get_class_weights(train_dataset_path):
 
-    train_set = CustomImageTextFolder(train_dataset_path)
+    train_set = CustomImageTextFolder(train_dataset_path,extended_desc=None)
 
     total_num_samples_dataset = 0.0
     num_samples_each_class = []
@@ -347,7 +347,8 @@ if __name__ == '__main__':
         root=os.path.join(BASE_PATH, dataset_folder),
         tokens_max_len=_max_len,
         tokenizer_text=_tokenizer,
-        transform=Transforms(img_transf=get_dummy_pipeline()))
+        transform=Transforms(img_transf=get_dummy_pipeline()),
+        extended_desc=args.extended_desc_train)
 
     aux = [args.dataset_folder_name, VAL_DATASET_PATH]
     dataset_folder = '_'.join(aux)
@@ -355,7 +356,8 @@ if __name__ == '__main__':
         root=os.path.join(BASE_PATH, dataset_folder),
         tokens_max_len=_max_len,
         tokenizer_text=_tokenizer,
-        transform=Transforms(img_transf=get_dummy_pipeline()))
+        transform=Transforms(img_transf=get_dummy_pipeline()),
+        extended_desc=args.extended_desc_val)
 
     _num_workers = 16
 

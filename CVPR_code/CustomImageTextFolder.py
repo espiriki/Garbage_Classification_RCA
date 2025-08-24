@@ -10,7 +10,7 @@ import torch
 from torchvision import transforms
 from torch.utils.data import DataLoader
 import re
-
+import pandas as pd
 
 def has_file_allowed_extension(filename: str, extensions: Union[str, Tuple[str, ...]]) -> bool:
     """Checks if a file is an allowed extension.
@@ -43,6 +43,7 @@ def pre_process_text(text):
 
 def custom_make_dataset(
     directory: str,
+    extended_desc,
     class_to_idx: Optional[Dict[str, int]] = None,
     extensions: Optional[Union[str, Tuple[str, ...]]] = None,
     is_valid_file: Optional[Callable[[str], bool]] = None,
@@ -76,6 +77,18 @@ def custom_make_dataset(
 
     is_valid_file = cast(Callable[[str], bool], is_valid_file)
 
+    df = None
+    lookup = None
+    if extended_desc is not None:
+        # Create a list for each class
+        try:
+            df = pd.read_csv(extended_desc, dtype=str)
+            lookup = df.set_index("filename")["description"]  # Series keyed by filename
+        except Exception as e:
+            print(f"Error reading {extended_desc}: {e}", file=sys.stderr)
+            sys.exit(1)
+
+
     available_classes = set()
     per_class_lists = [[], [], [], []]
     instances = []
@@ -88,9 +101,15 @@ def custom_make_dataset(
             for fname in sorted(fnames):
                 path = os.path.join(root, fname)
                 if is_valid_file(path):
-                    # zero out text
                     filename = pre_process_text(Path(path).stem)
-                    item = {"text": filename, "image": path}, class_index
+
+
+                    original_filename = os.path.basename(path)
+                    long_desc = ""
+                    if lookup is not None and original_filename is not None:
+                        long_desc = lookup.get(original_filename)
+
+                    item = {"text": filename, "image": path, "long_text":long_desc}, class_index
                     per_class_lists[class_index].append(item)
                     instances.append(item)
 
@@ -156,6 +175,7 @@ class DatasetFolder(VisionDataset):
         tokens_max_len: int,
         tokenizer_text,
         loader: Callable[[str], Any],
+        extended_desc: str,
         extensions: Optional[Tuple[str, ...]] = None,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
@@ -168,7 +188,7 @@ class DatasetFolder(VisionDataset):
         custom_samples = ()
         if self.root is not None:
             custom_samples = custom_make_dataset(
-                self.root, class_to_idx, extensions, is_valid_file)
+                self.root, extended_desc, class_to_idx, extensions, is_valid_file)
 
         if root is None:
             self.per_class = None
@@ -183,6 +203,7 @@ class DatasetFolder(VisionDataset):
 
         self.tokens_max_len = tokens_max_len
         self.tokenizer = tokenizer_text
+        self.extended_desc = extended_desc
 
         if list_custom_samples is not None:
             self.samples = list_custom_samples
@@ -271,12 +292,18 @@ class DatasetFolder(VisionDataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
+        text_key = ""
+        if self.extended_desc is not None:
+            text_key = 'long_text'
+        else:
+            text_key = 'text'
+
         tokens_dict = {
-            'original_text': path['text'],
+            'original_text': path[text_key],
         }
         if self.tokenizer is not None:
             encoding = self.tokenizer.encode_plus(
-                path['text'],
+                path[text_key],
 
                 # If left unset or set to None, this will use the predefined
                 # model maximum length if a maximum length is required by one
@@ -388,13 +415,15 @@ class CustomImageTextFolder(DatasetFolder):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         loader: Callable[[str], Any] = default_loader,
-        is_valid_file: Optional[Callable[[str], bool]] = None
+        is_valid_file: Optional[Callable[[str], bool]] = None,
+        extended_desc=None,
     ):
         super().__init__(
             root,
             tokens_max_len,
             tokenizer_text,
             loader,
+            extended_desc,
             IMG_EXTENSIONS if is_valid_file is None else None,
             transform=transform,
             target_transform=target_transform,
