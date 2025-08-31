@@ -166,7 +166,8 @@ if __name__ == '__main__':
         args.num_neurons_FC,
         args.text_model,
         _batch_size,
-        args.reverse)
+        args.reverse,
+        args.features_only)
 
     model_name = args.model_path
     global_model.load_state_dict(torch.load(model_name))

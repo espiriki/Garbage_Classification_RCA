@@ -93,12 +93,12 @@ class ReverseCrossAttention(torch.nn.Module):
         assert (attn_weights.shape[1] == attn_weights.shape[2])
 
         if self.reverse:
-            print("RCA!!")
+            # print("RCA!!")
             dimension = attn_weights.shape[1]
             reversed_weights = (1.0-attn_weights)/(dimension-1)
             context_vec = reversed_weights.matmul(values_2)
         else:
-            print("NON RCA")
+            # print("NON RCA")
             context_vec = attn_weights.matmul(values_2)
 
         output = context_vec
@@ -163,11 +163,15 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
                  num_neurons_fc,
                  text_model_name,
                  batch_size,
-                 reverse):
+                 reverse,
+                 features_only):
         super(EffV2MediumAndDistilbertGated, self).__init__()
 
         self.text_model_name = text_model_name
+        self.features_only = features_only
         
+        print("Only features:", self.features_only)
+
         if text_model_name == "bert":     
             self.text_model = bert()
         elif text_model_name == "distilbert":     
@@ -679,20 +683,31 @@ class MM_RCA(EffV2MediumAndDistilbertGated):
         complementary_cross_attention_I_T = torch.flatten(
             complementary_cross_attention_I_T, start_dim=1, end_dim=2)
 
-        # FC layer to output
-        concat_features = torch.cat(
+        if self.features_only:
+
+            # FC layer to output
+            concat_features = torch.cat(
+                (
+                    original_image_features,
+                    original_text_features
+                ), dim=1)
+        else:
+            # FC layer to output
+            concat_features = torch.cat(
             (
-                complementary_cross_attention_T_I,
-                complementary_cross_attention_I_T,
-                original_image_features,
-                original_text_features
+            complementary_cross_attention_T_I,
+            complementary_cross_attention_I_T,
+            original_image_features,
+            original_text_features
             ), dim=1)
+            
 
         after_dropout = self.drop(concat_features)
 
-        # output = self.final(after_dropout)
-        # output = self.final_features_only(after_dropout)
-        output = self.final_with_everything(after_dropout)
+        if self.features_only:
+            output = self.final_features_only(after_dropout)
+        else:
+            output = self.final_with_everything(after_dropout)
 
         return output
 class Hierarchical(EffV2MediumAndDistilbertGated):

@@ -47,8 +47,11 @@ def args_parser():
     parser.add_argument('--num_neurons_FC', type=int, default=256,
                         help='Num neurons in FC layers')
     
-    parser.add_argument('--batch_size', type=int, default=16,
+    parser.add_argument('--batch_size', type=int, default=32,
                         help='Batch size')
+    
+    parser.add_argument('--batch_size_FT', type=int, default=32,
+                        help='Batch size for fine tuning')    
 
     parser.add_argument('--opt', type=str, default="sgd",
                         help='Optimizer to use')
@@ -76,6 +79,11 @@ def args_parser():
                         action=argparse.BooleanOptionalAction,
                         default=False,
                         help="Use RCA or not")
+    
+    parser.add_argument('--features_only',
+                        action=argparse.BooleanOptionalAction,
+                        default=False,
+                        help="Use only the extracted features or not")
 
     parser.add_argument('--extended_desc_train', type=str,
                         help='Path to extended description train CSV file')

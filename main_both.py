@@ -265,8 +265,8 @@ if __name__ == '__main__':
         _batch_size = 32
         _batch_size_FT = 2
     else:
-        _batch_size = 32
-        _batch_size_FT = 32
+        _batch_size = args.batch_size
+        _batch_size_FT = args.batch_size_FT
 
     if args.late_fusion == "gated":
         global_model = EffV2MediumAndDistilbertGated(
@@ -311,7 +311,8 @@ if __name__ == '__main__':
             args.num_neurons_FC,
             args.text_model,
             _batch_size,
-            args.reverse)
+            args.reverse,
+            args.features_only)
     elif args.late_fusion == "hierarchical":
         global_model = Hierarchical(
             _num_classes,
@@ -360,28 +361,7 @@ if __name__ == '__main__':
         print("Training for {} fine tuning epochs".format(args.ft_epochs))
         print("Fraction of the LR for fine tuning: {}".format(args.fraction_lr))
 
-    config = dict(
-        num_model_parameters=count_parameters(global_model),
-        batch_size=_batch_size,
-        learning_rate=args.lr,
-        regularization=args.reg,
-        balance_weights=args.balance_weights,
-        optimizer=args.opt,
-        batch_acc_steps=args.acc_steps,
-        batch_acc_steps_FT=args.acc_steps_FT,
-        num_epochs=args.epochs,
-        fine_tuning_epochs=args.ft_epochs,
-        fraction_lr=args.fraction_lr,
-        architecture_image=args.image_model,
-        architecture_text=args.text_model,
-        dataset_id="garbage",
-        modality_dropout_prob=args.image_text_dropout,
-        img_dropout_prob=args.image_prob_dropout,
-        late_fusion_strategy=args.late_fusion,
-        model_dropout_layer=args.model_dropout,
-        prob_image_aug=args.prob_aug,
-        num_neurons_FC=args.num_neurons_FC
-    )
+    config = dict(args)
 
     timezone = pytz.timezone('America/Edmonton')
     now = datetime.now(timezone)
@@ -637,14 +617,14 @@ if __name__ == '__main__':
                                                       mode_config_dict['text_only'],
                                                       eval_mode)
         
-        print("Calculating val set accuracy with BOTH on epoch {}".format(epoch))
-        val_acc_both, _ = calculate_set_accuracy(global_model,
-                                                      data_loader_val,
-                                                      len(data_loader_val.dataset),
-                                                      device,
-                                                      _batch_size,
-                                                      mode_config_dict['both'],
-                                                      eval_mode)        
+        # print("Calculating val set accuracy with BOTH on epoch {}".format(epoch))
+        # val_acc_both, _ = calculate_set_accuracy(global_model,
+        #                                               data_loader_val,
+        #                                               len(data_loader_val.dataset),
+        #                                               device,
+        #                                               _batch_size,
+        #                                               mode_config_dict['both'],
+        #                                               eval_mode)        
 
         if val_acc_image_only > max_img_only_acc:
             max_img_only_acc = val_acc_image_only
@@ -659,7 +639,7 @@ if __name__ == '__main__':
                    'val_accuracy_history': val_accuracy,
                    'val_accuracy_text_only_history': val_acc_text_only,
                    'val_accuracy_image_only_history': val_acc_image_only,
-                   'val_accuracy_BOTH_history': val_acc_both,
+                #    'val_accuracy_BOTH_history': val_acc_both,
                    'max_val_acc': max_val_accuracy,
                    'max_img_only_val_acc': max_img_only_acc,
                    'max_txt_only_val_acc': max_txt_only_acc,
@@ -786,14 +766,14 @@ if __name__ == '__main__':
                                                           mode_config_dict['text_only'],
                                                           eval_mode)
             
-            print("Fine Tuning: Calculating val set accuracy with BOTH on epoch {}".format(epoch))
-            val_acc_both, _ = calculate_set_accuracy(global_model,
-                                                      data_loader_val_FT,
-                                                      len(val_data),
-                                                      device,
-                                                      _batch_size_FT,
-                                                      mode_config_dict['both'],
-                                                      eval_mode)              
+            # print("Fine Tuning: Calculating val set accuracy with BOTH on epoch {}".format(epoch))
+            # val_acc_both, _ = calculate_set_accuracy(global_model,
+            #                                           data_loader_val_FT,
+            #                                           len(val_data),
+            #                                           device,
+            #                                           _batch_size_FT,
+            #                                           mode_config_dict['both'],
+            #                                           eval_mode)              
 
             if val_acc_image_only > max_img_only_acc:
                 max_img_only_acc = val_acc_image_only
@@ -808,7 +788,7 @@ if __name__ == '__main__':
                        'val_accuracy_history': val_accuracy,
                        'val_accuracy_text_only_history': val_acc_text_only,
                        'val_accuracy_image_only_history': val_acc_image_only,
-                       'val_accuracy_BOTH_history': val_acc_both,
+                    #    'val_accuracy_BOTH_history': val_acc_both,
                        'max_val_acc': max_val_accuracy,
                        'max_img_only_val_acc': max_img_only_acc,
                        'max_txt_only_val_acc': max_txt_only_acc,

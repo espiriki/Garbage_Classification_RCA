@@ -103,9 +103,8 @@ def custom_make_dataset(
                 path = os.path.join(root, fname)
                 if is_valid_file(path):
                     filename = pre_process_text(Path(path).stem)
-
-
-                    original_filename = os.path.basename(path)
+                    new_path = Path(path)
+                    original_filename =  os.path.join(new_path.parent.name, new_path.name)
                     long_desc = ""
                     if lookup is not None and original_filename is not None:
                         long_desc = lookup.get(original_filename)
