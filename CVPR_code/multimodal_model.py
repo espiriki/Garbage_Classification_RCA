@@ -696,7 +696,7 @@ class MM_RCA(EffV2MediumAndDistilbertGated):
                     original_text_features
                 ), dim=1)
 
-        if self.cross_attention_only:
+        elif self.cross_attention_only:
             concat_features = torch.cat(
                 (
                     complementary_cross_attention_T_I,
@@ -718,7 +718,7 @@ class MM_RCA(EffV2MediumAndDistilbertGated):
 
         if self.features_only:
             output = self.final_features_only(after_dropout)
-        if self.cross_attention_only:
+        elif self.cross_attention_only:
             output = self.cross_attention_only(after_dropout)
         else:
             output = self.final_with_everything(after_dropout)
