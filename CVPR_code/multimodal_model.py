@@ -164,13 +164,16 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
                  text_model_name,
                  batch_size,
                  reverse,
-                 features_only):
+                 features_only,
+                 cross_attention_only):
         super(EffV2MediumAndDistilbertGated, self).__init__()
 
         self.text_model_name = text_model_name
         self.features_only = features_only
+        self.cross_attention_only = cross_attention_only
         
         print("Only features:", self.features_only)
+        print("Only cross attention:", self.cross_attention_only)
 
         if text_model_name == "bert":     
             self.text_model = bert()
@@ -279,6 +282,9 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
         self.final_features_only = torch.nn.Linear(
             1280+768, n_classes)
         
+        self.cross_attention_only = torch.nn.Linear(
+            cross_attention_output_size*self.num_patches*2, n_classes)
+
         self.final_with_everything = torch.nn.Linear(
             cross_attention_output_size*self.num_patches*2 +
             1280+768, n_classes)
@@ -684,13 +690,19 @@ class MM_RCA(EffV2MediumAndDistilbertGated):
             complementary_cross_attention_I_T, start_dim=1, end_dim=2)
 
         if self.features_only:
-
-            # FC layer to output
             concat_features = torch.cat(
                 (
                     original_image_features,
                     original_text_features
                 ), dim=1)
+
+        if self.cross_attention_only:
+            concat_features = torch.cat(
+                (
+                    complementary_cross_attention_T_I,
+                    complementary_cross_attention_I_T
+                ), dim=1)
+
         else:
             # FC layer to output
             concat_features = torch.cat(
@@ -706,6 +718,8 @@ class MM_RCA(EffV2MediumAndDistilbertGated):
 
         if self.features_only:
             output = self.final_features_only(after_dropout)
+        if self.cross_attention_only:
+            output = self.cross_attention_only(after_dropout)
         else:
             output = self.final_with_everything(after_dropout)
 

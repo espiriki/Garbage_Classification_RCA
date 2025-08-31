@@ -312,7 +312,8 @@ if __name__ == '__main__':
             args.text_model,
             _batch_size,
             args.reverse,
-            args.features_only)
+            args.features_only,
+            args.cross_attention_only)
     elif args.late_fusion == "hierarchical":
         global_model = Hierarchical(
             _num_classes,

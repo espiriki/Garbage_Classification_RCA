@@ -85,6 +85,11 @@ def args_parser():
                         default=False,
                         help="Use only the extracted features or not")
 
+    parser.add_argument('--cross_attention_only',
+                        action=argparse.BooleanOptionalAction,
+                        default=False,
+                        help="Use only the cross attention features or not")
+
     parser.add_argument('--extended_desc_train', type=str,
                         help='Path to extended description train CSV file')
 
