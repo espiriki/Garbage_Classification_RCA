@@ -47,10 +47,10 @@ def args_parser():
     parser.add_argument('--num_neurons_FC', type=int, default=256,
                         help='Num neurons in FC layers')
     
-    parser.add_argument('--batch_size', type=int, default=32,
+    parser.add_argument('--batch_size', type=int, default=16,
                         help='Batch size')
     
-    parser.add_argument('--batch_size_FT', type=int, default=32,
+    parser.add_argument('--batch_size_FT', type=int, default=16,
                         help='Batch size for fine tuning')    
 
     parser.add_argument('--opt', type=str, default="sgd",
