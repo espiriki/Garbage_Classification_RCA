@@ -361,7 +361,7 @@ if __name__ == '__main__':
         print("Training for {} fine tuning epochs".format(args.ft_epochs))
         print("Fraction of the LR for fine tuning: {}".format(args.fraction_lr))
 
-    config = dict(args)
+    config = dict(args.__dict__)
 
     timezone = pytz.timezone('America/Edmonton')
     now = datetime.now(timezone)
