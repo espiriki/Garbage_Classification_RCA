@@ -279,11 +279,13 @@ class EffV2MediumAndDistilbertGated(torch.nn.Module):
         self.final = torch.nn.Linear(
             cross_attention_output_size*self.num_patches*2, n_classes)
 
-        self.final_features_only = torch.nn.Linear(
+        if self.features_only:
+            self.final_features_only_linear = torch.nn.Linear(
             1280+768, n_classes)
         
-        self.cross_attention_only = torch.nn.Linear(
-            cross_attention_output_size*self.num_patches*2, n_classes)
+        if self.cross_attention_only:
+            self.cross_attention_only_linear = torch.nn.Linear(
+                cross_attention_output_size*self.num_patches*2, n_classes)
 
         self.final_with_everything = torch.nn.Linear(
             cross_attention_output_size*self.num_patches*2 +
@@ -717,9 +719,9 @@ class MM_RCA(EffV2MediumAndDistilbertGated):
         after_dropout = self.drop(concat_features)
 
         if self.features_only:
-            output = self.final_features_only(after_dropout)
+            output = self.final_features_only_linear(after_dropout)
         elif self.cross_attention_only:
-            output = self.cross_attention_only(after_dropout)
+            output = self.cross_attention_only_linear(after_dropout)
         else:
             output = self.final_with_everything(after_dropout)
 
