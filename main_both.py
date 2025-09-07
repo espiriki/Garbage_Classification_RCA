@@ -33,7 +33,7 @@ import os
 import pytz
 from pathlib import Path
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-
+from imbalanced_sampler.imbalanced import *
 _num_classes = 4
 
 BASE_PATH = os.path.dirname(os.path.realpath(__file__)) + os.sep
@@ -84,11 +84,12 @@ def run_one_epoch(epoch_num, model, data_loader, len_train_data, hw_device,
     batch_loss = []
     n_batches = math.ceil((len_train_data/batch_size))
 
-    opt_weights = torch.FloatTensor(weights).cuda()
-
     if use_class_weights is True:
+        print("Using class weights!")
+        opt_weights = torch.FloatTensor(weights).cuda()
         criterion = torch.nn.CrossEntropyLoss(weight=opt_weights,label_smoothing=smoothing).to(hw_device)
     else:
+        print("Not using class weights!")
         criterion = torch.nn.CrossEntropyLoss(label_smoothing=smoothing).to(hw_device)
 
     print("Using device: {}".format(hw_device))
@@ -473,26 +474,58 @@ if __name__ == '__main__':
         transform=Transforms(img_transf=VALIDATION_PIPELINE))
 
     _num_workers = 16
+    
+    if args.balanced_sampler:
+        print("Using balanced sampler for training and validation sets")
 
-    data_loader_train = torch.utils.data.DataLoader(dataset=train_data,
+    if args.balanced_sampler:
+        data_loader_train = torch.utils.data.DataLoader(dataset=train_data,
+                                                        batch_size=_batch_size,
+                                                        num_workers=_num_workers,
+                                                        pin_memory=True,
+                                                        sampler=ImbalancedDatasetSampler(train_data, torch.tensor(train_data.targets)))
+    else:
+        data_loader_train = torch.utils.data.DataLoader(dataset=train_data,
+                                                        batch_size=_batch_size,
+                                                        shuffle=True,
+                                                        num_workers=_num_workers,
+                                                        pin_memory=True)
+
+    if args.balanced_sampler:
+        data_loader_val = torch.utils.data.DataLoader(dataset=val_data,
+                                                    batch_size=_batch_size,
+                                                    num_workers=_num_workers,
+                                                    pin_memory=True,
+                                                    sampler=ImbalancedDatasetSampler(val_data, torch.tensor(val_data.targets)))
+    else:
+        data_loader_val = torch.utils.data.DataLoader(dataset=val_data,
                                                     batch_size=_batch_size,
                                                     shuffle=True,
                                                     num_workers=_num_workers,
                                                     pin_memory=True)
 
-    data_loader_val = torch.utils.data.DataLoader(dataset=val_data,
-                                                  batch_size=_batch_size,
-                                                  shuffle=True,
-                                                  num_workers=_num_workers,
-                                                  pin_memory=True)
-
-    data_loader_train_FT = torch.utils.data.DataLoader(dataset=train_data,
+    
+    if args.balanced_sampler:
+        data_loader_train_FT = torch.utils.data.DataLoader(dataset=train_data,
                                                        batch_size=_batch_size_FT,
-                                                       shuffle=True,
                                                        num_workers=_num_workers,
-                                                       pin_memory=True)
+                                                       pin_memory=True,
+                                                       sampler=ImbalancedDatasetSampler(train_data, torch.tensor(train_data.targets)))
+    else:
+        data_loader_train_FT = torch.utils.data.DataLoader(dataset=train_data,
+                                                        batch_size=_batch_size_FT,
+                                                        shuffle=True,
+                                                        num_workers=_num_workers,
+                                                        pin_memory=True)
 
-    data_loader_val_FT = torch.utils.data.DataLoader(dataset=val_data,
+    if args.balanced_sampler:
+        data_loader_val_FT = torch.utils.data.DataLoader(dataset=val_data,
+                                                   batch_size=_batch_size_FT,
+                                                   num_workers=_num_workers,
+                                                   pin_memory=True,
+                                                   sampler=ImbalancedDatasetSampler(val_data, torch.tensor(val_data.targets)))
+    else:
+        data_loader_val_FT = torch.utils.data.DataLoader(dataset=val_data,
                                                      batch_size=_batch_size_FT,
                                                      shuffle=True,
                                                      num_workers=_num_workers,
