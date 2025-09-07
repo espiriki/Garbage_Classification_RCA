@@ -95,6 +95,12 @@ def args_parser():
 
     parser.add_argument('--extended_desc_val', type=str,
                         help='Path to extended description val CSV file')
+    
+    parser.add_argument('--balanced_sampler',
+                        action=argparse.BooleanOptionalAction,
+                        default=False,
+                        help="Use balanced sampler or not")
+  
 
     args = parser.parse_args()
     return args
