@@ -6,7 +6,8 @@ Unzip the folders **Final_dataset_W2025_Train**, **Final_dataset_W2025_Val**, **
 
 ## Set up environment
 
-Use the following singularity image to run the commands with apptainer: here.
+Use the following singularity image to run the commands with apptainer: [here](https://zenodo.org/records/17102516).
+The image file name is Final_2025_2.sif
 The Dockerfile used to create this apptainer image is on the root of this repo and is named **Dockerfile**.
 
 
