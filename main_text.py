@@ -33,6 +33,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import os
 import pytz
 from pathlib import Path
+from synonymizer.synonymizer import Synonymizer
+from huggingface_hub import login
 
 _num_classes = 4
 
@@ -84,7 +86,7 @@ def get_class_weights(train_dataset_path):
     return class_weights
 
 
-def run_one_epoch(epoch_num, model, data_loader, len_train_data, hw_device,
+def run_one_epoch(train_data, synonymizer, epoch_num, model, data_loader, len_train_data, hw_device,
                   batch_size, train_optimizer, weights, use_class_weights, acc_steps, smoothing):
 
     batch_loss = []
@@ -100,10 +102,28 @@ def run_one_epoch(epoch_num, model, data_loader, len_train_data, hw_device,
     print("Using device: {}".format(hw_device))
     for batch_idx, (data, labels) in enumerate(data_loader):
         texts = data['text']
-
-        input_token_ids = texts['tokens'].to(hw_device)
-        attention_mask = texts['attention_mask'].to(hw_device)
         labels = labels.to(hw_device)
+
+        if synonymizer is None:
+            input_token_ids = texts['tokens'].to(hw_device)
+            attention_mask = texts['attention_mask'].to(hw_device)
+
+        else:
+            text_batch = texts['original_text']
+
+            my_synonyms = synonymizer.synonymize_batch(
+                sentences=text_batch,
+                batch_size=len(text_batch))
+
+            input_token_ids = []
+            attention_mask = []
+            for element in my_synonyms:
+                tokens_synonyms = train_data.get_tokens(element)
+                input_token_ids.append(tokens_synonyms[0])
+                attention_mask.append(tokens_synonyms[1])
+
+            input_token_ids = torch.stack(input_token_ids, dim=0).to(device)
+            attention_mask = torch.stack(attention_mask, dim=0).to(device)
 
         model_outputs = model(_input_ids=input_token_ids,
                               _attention_mask=attention_mask)
@@ -359,7 +379,7 @@ if __name__ == '__main__':
         transform=Transforms(img_transf=get_dummy_pipeline()),
         extended_desc=args.extended_desc_val)
 
-    _num_workers = 16
+    _num_workers = 32
 
     data_loader_train = torch.utils.data.DataLoader(dataset=train_data,
                                                     batch_size=_batch_size,
@@ -413,12 +433,21 @@ if __name__ == '__main__':
     best_epoch = 0
     scheduler = ReduceLROnPlateau(optimizer, 'max',factor=0.4,verbose=True)
 
+    synonymizer = None
+    if args.use_synonyms:
+        with open("/project/def-rmsouza/jocazar/ENSF_619_02_Final_project_jose_cazarin/key.txt", 'r', encoding='utf-8') as file:
+            file_content = file.read()
+            login(token=file_content)
+        synonymizer = Synonymizer(args.prob_aug_text, device)
+
     for epoch in range(args.epochs):
 
         global_model.train()
         st = time.time()
 
-        num_batches, train_loss_per_batch = run_one_epoch(epoch,
+        num_batches, train_loss_per_batch = run_one_epoch(train_data,
+                                                          synonymizer,
+                                                          epoch,
                                                           global_model,
                                                           data_loader_train,
                                                           len(data_loader_train.dataset),
@@ -504,7 +533,9 @@ if __name__ == '__main__':
             global_model.train()
             st = time.time()
             # train using a small learning rate
-            ft_num_batches, ft_train_loss_per_batch = run_one_epoch(epoch,
+            ft_num_batches, ft_train_loss_per_batch = run_one_epoch(train_data,
+                                                                    synonymizer,
+                                                                    epoch,
                                                                     global_model,
                                                                     data_loader_train_FT,
                                                                     len(train_data),

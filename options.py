@@ -100,7 +100,14 @@ def args_parser():
                         action=argparse.BooleanOptionalAction,
                         default=False,
                         help="Use balanced sampler or not")
-  
+
+    parser.add_argument('--use_synonyms',
+                        action=argparse.BooleanOptionalAction,
+                        default=False,
+                        help="Use synonymizer augmentation for text")
+
+    parser.add_argument('--prob_aug_text', type=float, default=0.6,
+                        help='Prob of applying text synonymization augmentations')  
 
     args = parser.parse_args()
     return args

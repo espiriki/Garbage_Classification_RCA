@@ -432,3 +432,36 @@ class CustomImageTextFolder(DatasetFolder):
         )
 
         self.imgs = self.samples
+
+    def get_tokens(self, text_data):
+        if self.tokenizer is not None:
+            encoding = self.tokenizer.encode_plus(
+                text_data,
+
+                # If left unset or set to None, this will use the predefined
+                # model maximum length if a maximum length is required by one
+                # of the truncation/padding parameters. If the model has no
+                # specific maximum input length (like XLNet) truncation/padding
+                # to a maximum length will be deactivated.
+                max_length=self.tokens_max_len,
+
+                # False or 'do_not_truncate' (default):
+                # No truncation (i.e., can output batch with sequence lengths
+                # greater than the model maximum admissible input size).
+                truncation=True,
+
+                # Needed if there's padding
+                # so the padding can be ignored
+                return_attention_mask=True,
+
+
+                return_token_type_ids=False,
+
+                # Padding to max_len
+                # Equivalent to the resizing of the images
+                padding='max_length',
+
+                # pt = pytorch
+                return_tensors='pt'
+            )
+        return encoding['input_ids'].flatten(), encoding['attention_mask'].flatten()
