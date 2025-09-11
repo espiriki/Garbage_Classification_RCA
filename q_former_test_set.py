@@ -259,7 +259,7 @@ bias="none",
 model = get_peft_model(model, config)
 
 model_name = args.model_path
-loaded_model = torch.load("../BLIP2_epoch_9_acc_0.8855.pth")
+loaded_model = torch.load(model_name)
 
 try:
     model.load_state_dict(loaded_model['model_state_dict'])

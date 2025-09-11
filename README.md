@@ -2,14 +2,13 @@
 
 ## Instructions on how to repo the results in the paper
 First, download the dataset [here](https://zenodo.org/records/15832061), the zip file is named "final_dataset_20k.zip".
-Unzip the folders **Final_dataset_W2025_Train**, **Final_dataset_W2025_Val**, **Final_dataset_W2025_Test**. They contain the train set, validation set and test set.
+Unzip the folders **Final_dataset_W2025_Train**, **Final_dataset_W2025_Val**, **Final_dataset_W2025_Test** in the root of this repo. They contain the train set, validation set and test set.
 
 ## Set up environment
 
 Use the following singularity image to run the commands with apptainer: [here](https://zenodo.org/records/17102516).
 The image file name is Final_2025_2.sif
 The Dockerfile used to create this apptainer image is on the root of this repo and is named **Dockerfile**.
-
 
 ### Training Results
 
@@ -52,7 +51,20 @@ If the **late_fusion** is kept as MM_RCA, the following command line combination
 
 Keeping the command as-is will test the MM-RCA model.
     
-    
+### BLIP2 model
+
+Use the slurm files in the **slurm_files/blip2** folder to repro the training runs.
+
+Use the files **blip_2_test_set.py** and **q_former_test_set.py** to get the test set results.
+
+The args are **dataset_folder_name=./Final_dataset_W2025_Test/** for the test set location
+and **model_path=<weights_pth_file>** to choose the .pth weights file.
+
+The **q_former_test_set.py** has another parameter **--classifier_weights=<classifier_weights_pth_file>** used to
+load the weights of the classifier head
+
+
+
 
 
 

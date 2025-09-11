@@ -107,7 +107,10 @@ def args_parser():
                         help="Use synonymizer augmentation for text")
 
     parser.add_argument('--prob_aug_text', type=float, default=0.6,
-                        help='Prob of applying text synonymization augmentations')  
+                        help='Prob of applying text synonymization augmentations')
+
+    parser.add_argument('--classifier_weights', type=str,
+                        help='Path to weights file of the classifier head in the Q-Former model')
 
     args = parser.parse_args()
     return args
