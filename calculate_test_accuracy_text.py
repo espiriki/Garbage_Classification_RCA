@@ -171,6 +171,10 @@ if __name__ == '__main__':
     elif args.text_model == "gpt2":
         global_model = GPT2(_num_classes)
         _batch_size = 32
+    elif args.text_model == "mobile_bert":
+        global_model = MobileBERT(_num_classes)
+        _batch_size = 18
+        args.acc_steps = 12
     else:
         print("Invalid Model: {}".format(args.text_model))
         sys.exit(1)

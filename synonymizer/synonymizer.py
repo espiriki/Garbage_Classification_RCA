@@ -1,4 +1,3 @@
-from huggingface_hub import login
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import os
 import torch

@@ -205,6 +205,11 @@ if __name__ == '__main__':
         global_model = VisionL16(_num_classes, args.tl)
         input_size = (224, 224)
         _batch_size = 128
+        args.acc_steps = 3
+    elif args.image_model == "shuffle_net":
+        global_model = ShuffleNetV2(_num_classes, args.tl)
+        input_size = (224, 224)
+        _batch_size = 128
         args.acc_steps = 3        
     else:
         print("Invalid Model: {}".format(args.model))

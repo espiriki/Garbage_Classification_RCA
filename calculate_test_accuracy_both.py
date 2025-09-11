@@ -158,16 +158,30 @@ if __name__ == '__main__':
 
     _batch_size = 16
 
-    global_model = MM_RCA(
-        _num_classes,
-        args.model_dropout,
-        args.image_text_dropout,
-        args.image_prob_dropout,
-        args.num_neurons_FC,
-        args.text_model,
-        _batch_size,
-        args.reverse,
-        args.features_only)
+    if args.late_fusion == "MM_RCA":
+        global_model = MM_RCA(
+            _num_classes,
+            args.model_dropout,
+            args.image_text_dropout,
+            args.image_prob_dropout,
+            args.num_neurons_FC,
+            args.text_model,
+            _batch_size,
+            args.reverse,
+            args.features_only)
+    elif args.late_fusion == "hierarchical":
+        global_model = Hierarchical(
+            _num_classes,
+            args.model_dropout,
+            args.image_text_dropout,
+            args.image_prob_dropout,
+            args.num_neurons_FC,
+            args.text_model,
+            _batch_size,
+            args.reverse)
+    else:
+        print("Wrong late fusion strategy: ", args.late_fusion)
+        sys.exit(1)
 
     model_name = args.model_path
     global_model.load_state_dict(torch.load(model_name))
